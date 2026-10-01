@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { 
   Plus, 
   MoreHorizontal, 
@@ -19,10 +20,9 @@ export default function BoardView({
   onAddCardClick, 
   onAddListClick,
   onMoveCard,
+  onReorderLists,
   currentUser 
 }) {
-  const [draggedCardId, setDraggedCardId] = useState(null);
-  const [dragOverListId, setDragOverListId] = useState(null);
   const [filterMyTasks, setFilterMyTasks] = useState(false);
 
   if (!board) {
@@ -42,26 +42,21 @@ export default function BoardView({
     }
   };
 
-  const handleDragStart = (e, cardId) => {
-    setDraggedCardId(cardId);
-    e.dataTransfer.setData('text/plain', cardId);
-  };
+  const handleDragEnd = (result) => {
+    const { destination, source, draggableId, type } = result;
 
-  const handleDragOver = (e, listId) => {
-    e.preventDefault();
-    if (dragOverListId !== listId) {
-      setDragOverListId(listId);
-    }
-  };
+    if (!destination) return;
+    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
 
-  const handleDrop = (e, listId) => {
-    e.preventDefault();
-    const cardId = e.dataTransfer.getData('text/plain') || draggedCardId;
-    if (cardId && listId) {
-      onMoveCard(cardId, listId);
+    if (type === 'column') {
+      if (onReorderLists) {
+        onReorderLists(source.index, destination.index);
+      }
+    } else {
+      if (onMoveCard) {
+        onMoveCard(draggableId, source.droppableId, destination.droppableId, source.index, destination.index);
+      }
     }
-    setDraggedCardId(null);
-    setDragOverListId(null);
   };
 
   return (
@@ -138,223 +133,268 @@ export default function BoardView({
         </div>
       </div>
 
-      {/* Kanban Board Columns Container */}
-      <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start', flex: 1, pb: '1.5rem' }}>
-        {board.lists?.map((list) => {
-          const isOver = dragOverListId === list._id;
-          
-          // Filter list cards if "Assigned to Me" is active
-          const displayedCards = list.cards?.filter(c => {
-            if (!filterMyTasks || !currentUser) return true;
-            return c.assignees && c.assignees.some(a => (a._id || a) === currentUser._id);
-          }) || [];
-
-          return (
+      {/* Drag and Drop Canvas Context */}
+      <DragDropContext onDragEnd={handleDragEnd}>
+        <Droppable droppableId="board-columns" direction="horizontal" type="column">
+          {(provided) => (
             <div
-              key={list._id}
-              onDragOver={(e) => handleDragOver(e, list._id)}
-              onDrop={(e) => handleDrop(e, list._id)}
-              className="glass-panel"
-              style={{
-                width: '310px',
-                minWidth: '310px',
-                maxHeight: 'calc(100vh - 180px)',
-                display: 'flex',
-                flexDirection: 'column',
-                padding: '1rem',
-                backgroundColor: isOver ? '#EEF2FF' : '#FFFFFF',
-                borderColor: isOver ? '#4F46E5' : '#E2E8F0',
-                boxShadow: 'var(--shadow-sm)',
-                transition: 'all 0.15s'
-              }}
+              ref={provided.innerRef}
+              {...provided.droppableProps}
+              style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start', flex: 1, pb: '1.5rem' }}
             >
-              {/* Column Header */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: list.color || '#3B82F6' }} />
-                  <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0F172A' }}>
-                    {list.title}
-                  </h3>
-                  <span style={{
-                    background: '#F1F5F9',
-                    color: '#475569',
-                    padding: '2px 7px',
-                    borderRadius: '12px',
-                    fontSize: '0.7rem',
-                    fontWeight: 700
-                  }}>
-                    {displayedCards.length}
-                  </span>
-                </div>
+              {board.lists?.map((list, listIndex) => {
+                // Filter list cards if "Assigned to Me" is active
+                const displayedCards = list.cards?.filter(c => {
+                  if (!filterMyTasks || !currentUser) return true;
+                  return c.assignees && c.assignees.some(a => (a._id || a) === currentUser._id);
+                }) || [];
 
-                <button
-                  onClick={() => onAddCardClick(list._id)}
-                  title="Add Task to this List"
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#64748B',
-                    cursor: 'pointer',
-                    padding: '2px 4px'
-                  }}
-                >
-                  <Plus size={16} />
-                </button>
-              </div>
+                return (
+                  <Draggable key={list._id} draggableId={list._id} index={listIndex}>
+                    {(listProvided, listSnapshot) => (
+                      <div
+                        ref={listProvided.innerRef}
+                        {...listProvided.draggableProps}
+                        className="glass-panel"
+                        style={{
+                          width: '310px',
+                          minWidth: '310px',
+                          maxHeight: 'calc(100vh - 180px)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          padding: '1rem',
+                          backgroundColor: listSnapshot.isDragging ? '#F0F9FF' : '#FFFFFF',
+                          borderColor: listSnapshot.isDragging ? '#3B82F6' : '#E2E8F0',
+                          boxShadow: listSnapshot.isDragging ? '0 10px 25px rgba(0,0,0,0.1)' : 'var(--shadow-sm)',
+                          transition: 'all 0.15s',
+                          ...listProvided.draggableProps.style
+                        }}
+                      >
+                        {/* Column Header (Drag Handle) */}
+                        <div
+                          {...listProvided.dragHandleProps}
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', cursor: 'grab' }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: list.color || '#3B82F6' }} />
+                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0F172A' }}>
+                              {list.title}
+                            </h3>
+                            <span style={{
+                              background: '#F1F5F9',
+                              color: '#475569',
+                              padding: '2px 7px',
+                              borderRadius: '12px',
+                              fontSize: '0.7rem',
+                              fontWeight: 700
+                            }}>
+                              {displayedCards.length}
+                            </span>
+                          </div>
 
-              {/* Cards Container */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', overflowY: 'auto', flex: 1, paddingRight: '2px' }}>
-                {displayedCards.map((card) => {
-                  const completedSubtasks = card.subtasks?.filter(s => s.completed).length || 0;
-                  const totalSubtasks = card.subtasks?.length || 0;
-                  const isAssignedToUser = currentUser && card.assignees?.some(a => (a._id || a) === currentUser._id);
-
-                  return (
-                    <div
-                      key={card._id}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, card._id)}
-                      onClick={() => onCardClick(card._id)}
-                      className="glass-card"
-                      style={{
-                        padding: '0.85rem',
-                        cursor: 'grab',
-                        background: '#FFFFFF',
-                        borderLeft: `4px solid ${list.color || '#3B82F6'}`,
-                        border: isAssignedToUser ? '1px solid #C7D2FE' : '1px solid #E2E8F0',
-                        boxShadow: isAssignedToUser ? '0 2px 8px rgba(79, 70, 229, 0.12)' : 'var(--shadow-sm)'
-                      }}
-                    >
-                      {/* Labels & Key */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                        <span style={{ fontSize: '0.7rem', fontFamily: 'var(--font-mono)', color: '#4F46E5', fontWeight: 700 }}>
-                          {card.key}
-                        </span>
-
-                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                          <span className={getPriorityBadgeClass(card.priority)} style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', textTransform: 'capitalize', fontWeight: 700 }}>
-                            {card.priority}
-                          </span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onAddCardClick(list._id); }}
+                            title="Add Task to this List"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#64748B',
+                              cursor: 'pointer',
+                              padding: '2px 4px'
+                            }}
+                          >
+                            <Plus size={16} />
+                          </button>
                         </div>
-                      </div>
 
-                      {/* Title */}
-                      <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.6rem', lineHeight: '1.4' }}>
-                        {card.title}
-                      </h4>
-
-                      {/* Tags */}
-                      {card.labels && card.labels.length > 0 && (
-                        <div style={{ display: 'flex', gap: '4px', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                          {card.labels.map((lbl, idx) => (
-                            <span 
-                              key={idx} 
-                              style={{ 
-                                background: `${lbl.color}15`, 
-                                color: lbl.color, 
-                                border: `1px solid ${lbl.color}30`,
-                                fontSize: '0.65rem', 
-                                padding: '1px 6px', 
-                                borderRadius: '4px',
-                                fontWeight: 600
+                        {/* Cards Droppable Area */}
+                        <Droppable droppableId={list._id} type="task">
+                          {(cardsProvided, cardsSnapshot) => (
+                            <div
+                              ref={cardsProvided.innerRef}
+                              {...cardsProvided.droppableProps}
+                              style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.75rem',
+                                overflowY: 'auto',
+                                flex: 1,
+                                paddingRight: '2px',
+                                minHeight: '50px',
+                                backgroundColor: cardsSnapshot.isDraggingOver ? '#EEF2FF' : 'transparent',
+                                borderRadius: '8px',
+                                padding: '4px',
+                                transition: 'background-color 0.15s'
                               }}
                             >
-                              {lbl.name}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                              {displayedCards.map((card, cardIndex) => {
+                                const completedSubtasks = card.subtasks?.filter(s => s.completed).length || 0;
+                                const totalSubtasks = card.subtasks?.length || 0;
+                                const isAssignedToUser = currentUser && card.assignees?.some(a => (a._id || a) === currentUser._id);
 
-                      {/* Footer Metrics & Assignees */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #F1F5F9', paddingTop: '0.5rem', marginTop: '0.5rem', fontSize: '0.7rem', color: '#64748B' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                          {totalSubtasks > 0 && (
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '3px', color: completedSubtasks === totalSubtasks ? '#059669' : '#64748B', fontWeight: 600 }}>
-                              <CheckSquare size={13} /> {completedSubtasks}/{totalSubtasks}
-                            </span>
+                                return (
+                                  <Draggable key={card._id} draggableId={card._id} index={cardIndex}>
+                                    {(cardProvided, cardSnapshot) => (
+                                      <div
+                                        ref={cardProvided.innerRef}
+                                        {...cardProvided.draggableProps}
+                                        {...cardProvided.dragHandleProps}
+                                        onClick={() => onCardClick(card._id)}
+                                        className="glass-card"
+                                        style={{
+                                          padding: '0.85rem',
+                                          cursor: 'grab',
+                                          background: '#FFFFFF',
+                                          borderLeft: `4px solid ${list.color || '#3B82F6'}`,
+                                          border: isAssignedToUser ? '1px solid #C7D2FE' : '1px solid #E2E8F0',
+                                          boxShadow: cardSnapshot.isDragging 
+                                            ? '0 12px 24px rgba(79, 70, 229, 0.2)' 
+                                            : isAssignedToUser ? '0 2px 8px rgba(79, 70, 229, 0.12)' : 'var(--shadow-sm)',
+                                          transform: cardSnapshot.isDragging ? 'rotate(1deg)' : 'none',
+                                          ...cardProvided.draggableProps.style
+                                        }}
+                                      >
+                                        {/* Labels & Key */}
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                          <span style={{ fontSize: '0.7rem', fontFamily: 'var(--font-mono)', color: '#4F46E5', fontWeight: 700 }}>
+                                            {card.key}
+                                          </span>
+
+                                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                            <span className={getPriorityBadgeClass(card.priority)} style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', textTransform: 'capitalize', fontWeight: 700 }}>
+                                              {card.priority}
+                                            </span>
+                                          </div>
+                                        </div>
+
+                                        {/* Title */}
+                                        <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.6rem', lineHeight: '1.4' }}>
+                                          {card.title}
+                                        </h4>
+
+                                        {/* Tags */}
+                                        {card.labels && card.labels.length > 0 && (
+                                          <div style={{ display: 'flex', gap: '4px', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                                            {card.labels.map((lbl, idx) => (
+                                              <span 
+                                                key={idx} 
+                                                style={{ 
+                                                  background: `${lbl.color}15`, 
+                                                  color: lbl.color, 
+                                                  border: `1px solid ${lbl.color}30`,
+                                                  fontSize: '0.65rem', 
+                                                  padding: '1px 6px', 
+                                                  borderRadius: '4px',
+                                                  fontWeight: 600
+                                                }}
+                                              >
+                                                {lbl.name}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        )}
+
+                                        {/* Footer Metrics & Assignees */}
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #F1F5F9', paddingTop: '0.5rem', marginTop: '0.5rem', fontSize: '0.7rem', color: '#64748B' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                            {totalSubtasks > 0 && (
+                                              <span style={{ display: 'flex', alignItems: 'center', gap: '3px', color: completedSubtasks === totalSubtasks ? '#059669' : '#64748B', fontWeight: 600 }}>
+                                                <CheckSquare size={13} /> {completedSubtasks}/{totalSubtasks}
+                                              </span>
+                                            )}
+
+                                            {card.comments && card.comments.length > 0 && (
+                                              <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                                <MessageSquare size={13} /> {card.comments.length}
+                                              </span>
+                                            )}
+                                          </div>
+
+                                          {/* Assignees */}
+                                          <div style={{ display: 'flex', alignItems: 'center' }}>
+                                            {card.assignees?.map((u, i) => (
+                                              <img
+                                                key={u._id || i}
+                                                src={u.avatar}
+                                                alt={u.name}
+                                                title={u.name}
+                                                style={{
+                                                  width: '22px',
+                                                  height: '22px',
+                                                  borderRadius: '50%',
+                                                  marginLeft: i > 0 ? '-6px' : 0,
+                                                  border: '2px solid #FFFFFF'
+                                                }}
+                                              />
+                                            ))}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </Draggable>
+                                );
+                              })}
+                              {cardsProvided.placeholder}
+                            </div>
                           )}
+                        </Droppable>
 
-                          {card.comments && card.comments.length > 0 && (
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                              <MessageSquare size={13} /> {card.comments.length}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Assignees */}
-                        <div style={{ display: 'flex', alignItems: 'center' }}>
-                          {card.assignees?.map((u, i) => (
-                            <img
-                              key={u._id || i}
-                              src={u.avatar}
-                              alt={u.name}
-                              title={u.name}
-                              style={{
-                                width: '22px',
-                                height: '22px',
-                                borderRadius: '50%',
-                                marginLeft: i > 0 ? '-6px' : 0,
-                                border: '2px solid #FFFFFF'
-                              }}
-                            />
-                          ))}
-                        </div>
+                        {/* Add Card Button at Bottom of Column */}
+                        <button
+                          onClick={() => onAddCardClick(list._id)}
+                          style={{
+                            marginTop: '0.75rem',
+                            background: '#F8FAFC',
+                            border: '1px dashed #CBD5E1',
+                            borderRadius: '6px',
+                            padding: '0.45rem',
+                            color: '#475569',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '4px',
+                            transition: 'all 0.15s'
+                          }}
+                        >
+                          <Plus size={14} /> Add Card
+                        </button>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    )}
+                  </Draggable>
+                );
+              })}
+              {provided.placeholder}
 
-              {/* Add Card Button at Bottom of Column */}
+              {/* Add List Button Column */}
               <button
-                onClick={() => onAddCardClick(list._id)}
+                onClick={onAddListClick}
                 style={{
-                  marginTop: '0.75rem',
-                  background: '#F8FAFC',
+                  minWidth: '240px',
+                  background: '#FFFFFF',
                   border: '1px dashed #CBD5E1',
-                  borderRadius: '6px',
-                  padding: '0.45rem',
+                  borderRadius: '12px',
+                  padding: '1rem',
                   color: '#475569',
-                  fontSize: '0.75rem',
+                  fontSize: '0.85rem',
                   fontWeight: 700,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '4px',
-                  transition: 'all 0.15s'
+                  gap: '0.5rem',
+                  height: 'fit-content',
+                  boxShadow: 'var(--shadow-sm)'
                 }}
               >
-                <Plus size={14} /> Add Card
+                <Plus size={16} /> Add List Column
               </button>
             </div>
-          );
-        })}
-
-        {/* Add List Button Column */}
-        <button
-          onClick={onAddListClick}
-          style={{
-            minWidth: '240px',
-            background: '#FFFFFF',
-            border: '1px dashed #CBD5E1',
-            borderRadius: '12px',
-            padding: '1rem',
-            color: '#475569',
-            fontSize: '0.85rem',
-            fontWeight: 700,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.5rem',
-            height: 'fit-content',
-            boxShadow: 'var(--shadow-sm)'
-          }}
-        >
-          <Plus size={16} /> Add List Column
-        </button>
-      </div>
+          )}
+        </Droppable>
+      </DragDropContext>
     </main>
   );
 }

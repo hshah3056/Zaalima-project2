@@ -161,36 +161,63 @@ export default function App() {
     }
   };
 
-  const handleMoveCard = (cardId, targetListId) => {
-    fetch(`${API_BASE}/cards/${cardId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ listId: targetListId }),
-    })
-      .then((res) => res.json())
-      .then(() => fetchBoardDetails(currentBoardId))
-      .catch(() => {
-        if (!boardDetails) return;
-        let movedCard = null;
-        const newLists = boardDetails.lists.map((list) => {
-          const found = list.cards.find((c) => c._id === cardId);
-          if (found) movedCard = { ...found, list: targetListId };
-          return {
-            ...list,
-            cards: list.cards.filter((c) => c._id !== cardId),
-          };
-        });
+  const handleMoveCard = (cardId, sourceListId, targetListId, sourceIndex, targetIndex) => {
+    // Optimistic UI state update for fluid drag and drop experience
+    if (boardDetails && boardDetails.lists) {
+      const newLists = boardDetails.lists.map(l => ({
+        ...l,
+        cards: [...(l.cards || [])]
+      }));
 
-        if (movedCard) {
-          const targetListIndex = newLists.findIndex(
-            (l) => l._id === targetListId,
-          );
-          if (targetListIndex !== -1) {
-            newLists[targetListIndex].cards.push(movedCard);
+      const sourceList = newLists.find(l => l._id === (sourceListId || targetListId));
+      const targetList = newLists.find(l => l._id === targetListId);
+
+      if (sourceList && targetList) {
+        if (sourceList._id === targetList._id) {
+          const cardIdx = sourceList.cards.findIndex(c => c._id === cardId);
+          if (cardIdx !== -1) {
+            const [movedCard] = sourceList.cards.splice(cardIdx, 1);
+            sourceList.cards.splice(targetIndex !== undefined ? targetIndex : 0, 0, movedCard);
+          }
+        } else {
+          const cardIdx = sourceList.cards.findIndex(c => c._id === cardId);
+          if (cardIdx !== -1) {
+            const [movedCard] = sourceList.cards.splice(cardIdx, 1);
+            movedCard.list = targetListId;
+            targetList.cards.splice(targetIndex !== undefined ? targetIndex : targetList.cards.length, 0, movedCard);
           }
         }
         setBoardDetails({ ...boardDetails, lists: newLists });
-      });
+      }
+    }
+
+    fetch(`${API_BASE}/cards/${cardId}/move`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targetListId, position: targetIndex !== undefined ? targetIndex : 0 }),
+    })
+      .then((res) => res.json())
+      .then(() => fetchBoardDetails(currentBoardId))
+      .catch((err) => console.error("API move card failed:", err));
+  };
+
+  const handleReorderLists = (sourceIndex, destinationIndex) => {
+    if (!boardDetails || !boardDetails.lists) return;
+    const reorderedLists = [...boardDetails.lists];
+    const [removed] = reorderedLists.splice(sourceIndex, 1);
+    reorderedLists.splice(destinationIndex, 0, removed);
+
+    setBoardDetails({ ...boardDetails, lists: reorderedLists });
+
+    const orderedListIds = reorderedLists.map(l => l._id);
+    fetch(`${API_BASE}/lists/reorder`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ boardId: currentBoardId, orderedListIds }),
+    })
+      .then((res) => res.json())
+      .then(() => fetchBoardDetails(currentBoardId))
+      .catch((err) => console.error("API reorder lists failed:", err));
   };
 
   const handleCreateCard = (cardData) => {
@@ -497,6 +524,7 @@ export default function App() {
             }}
             onAddListClick={handleAddListColumn}
             onMoveCard={handleMoveCard}
+            onReorderLists={handleReorderLists}
             currentUser={currentUser}
           />
         )}
