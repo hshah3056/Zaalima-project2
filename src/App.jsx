@@ -257,24 +257,68 @@ export default function App() {
 
   const handleCreateBoard = (boardPayload) => {
     fetch(`${API_BASE}/boards`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(boardPayload),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(boardPayload)
     })
-      .then((res) => res.json())
-      .then((res) => {
-        if (res.status === "success" && res.data) {
+      .then(res => res.json())
+      .then(res => {
+        if (res.status === 'success' && res.data) {
           const newBrd = res.data;
           setCurrentBoardId(newBrd._id);
           fetchWorkspaceData(currentWorkspaceId);
         }
       })
       .catch(() => {
-        const newId = `brd_${Date.now()}`;
-        setCurrentBoardId(newId);
+        // Architectural Spec Day 3-4: Auto-seed columns based on workflow template
+        const newBoardId = `brd_${Date.now()}`;
+        const isScrum = boardPayload.type === 'SCRUM';
+
+        const templateLists = isScrum
+          ? [
+              { _id: `lst_${Date.now()}_1`, board: newBoardId, title: 'Sprint Backlog', position: 0, wipLimit: 0, color: '#64748B', cards: [] },
+              { _id: `lst_${Date.now()}_2`, board: newBoardId, title: 'Active Sprint', position: 1, wipLimit: 5, color: '#3B82F6', cards: [] },
+              { _id: `lst_${Date.now()}_3`, board: newBoardId, title: 'Testing / QA', position: 2, wipLimit: 3, color: '#F59E0B', cards: [] },
+              { _id: `lst_${Date.now()}_4`, board: newBoardId, title: 'Sprint Completed', position: 3, wipLimit: 0, color: '#10B981', cards: [] }
+            ]
+          : [
+              { _id: `lst_${Date.now()}_1`, board: newBoardId, title: 'Backlog', position: 0, wipLimit: 20, color: '#64748B', cards: [] },
+              { _id: `lst_${Date.now()}_2`, board: newBoardId, title: 'In Progress', position: 1, wipLimit: 5, color: '#3B82F6', cards: [] },
+              { _id: `lst_${Date.now()}_3`, board: newBoardId, title: 'In Review', position: 2, wipLimit: 3, color: '#8B5CF6', cards: [] },
+              { _id: `lst_${Date.now()}_4`, board: newBoardId, title: 'Done', position: 3, wipLimit: 0, color: '#10B981', cards: [] }
+            ];
+
+        const newBoardObj = {
+          _id: newBoardId,
+          workspace: currentWorkspaceId,
+          name: boardPayload.name,
+          key: boardPayload.key,
+          type: boardPayload.type,
+          accessTier: boardPayload.accessTier,
+          leadId: boardPayload.leadId,
+          description: boardPayload.description,
+          icon: isScrum ? 'Sparkles' : 'Kanban',
+          lists: templateLists,
+          members: users
+        };
+
+        // Update local workspace boards list
+        setWorkspaces(workspaces.map(ws => {
+          if (ws._id === currentWorkspaceId) {
+            return {
+              ...ws,
+              boards: [...(ws.boards || []), newBoardId]
+            };
+          }
+          return ws;
+        }));
+
+        setBoardDetails(newBoardObj);
+        setCurrentBoardId(newBoardId);
+        setActiveView('kanban');
       });
   };
-
+  
   const handleAddListColumn = () => {
     const listTitle = prompt(
       "Enter New Column / List Title (e.g., Code Review):",
