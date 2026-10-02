@@ -168,39 +168,58 @@ export default function BoardView({
                 transition: 'all 0.15s'
               }}
             >
-              {/* Column Header */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: list.color || '#3B82F6' }} />
-                  <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0F172A' }}>
-                    {list.title}
-                  </h3>
-                  <span style={{
-                    background: '#F1F5F9',
-                    color: '#475569',
-                    padding: '2px 7px',
-                    borderRadius: '12px',
-                    fontSize: '0.7rem',
-                    fontWeight: 700
-                  }}>
-                    {displayedCards.length}
-                  </span>
-                </div>
+              {/* Column Header with Agile WIP Limit Warning */}
+              {(() => {
+                const isOverWip = list.wipLimit > 0 && displayedCards.length > list.wipLimit;
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: isOverWip ? '#EF4444' : (list.color || '#3B82F6') }} />
+                      <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: isOverWip ? '#B91C1C' : '#0F172A', margin: 0 }}>
+                        {list.title}
+                      </h3>
+                      <span style={{
+                        background: isOverWip ? '#FEE2E2' : '#F1F5F9',
+                        color: isOverWip ? '#DC2626' : '#475569',
+                        border: isOverWip ? '1px solid #FCA5A5' : 'none',
+                        padding: '2px 7px',
+                        borderRadius: '12px',
+                        fontSize: '0.7rem',
+                        fontWeight: 700
+                      }}>
+                        {displayedCards.length}{list.wipLimit > 0 ? ` / ${list.wipLimit}` : ''}
+                      </span>
+                      {isOverWip && (
+                        <span style={{
+                          fontSize: '0.62rem',
+                          fontWeight: 800,
+                          background: '#EF4444',
+                          color: '#FFFFFF',
+                          padding: '1px 6px',
+                          borderRadius: '4px',
+                          letterSpacing: '0.5px'
+                        }}>
+                          OVER WIP
+                        </span>
+                      )}
+                    </div>
 
-                <button
-                  onClick={() => onAddCardClick(list._id)}
-                  title="Add Task to this List"
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#64748B',
-                    cursor: 'pointer',
-                    padding: '2px 4px'
-                  }}
-                >
-                  <Plus size={16} />
-                </button>
-              </div>
+                    <button
+                      onClick={() => onAddCardClick(list._id)}
+                      title="Add Task to this List"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#64748B',
+                        cursor: 'pointer',
+                        padding: '2px 4px'
+                      }}
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </div>
+                );
+              })()}
 
               {/* Cards Container */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', overflowY: 'auto', flex: 1, paddingRight: '2px' }}>
