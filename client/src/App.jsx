@@ -13,6 +13,7 @@ import CreateCardModal from "./components/CreateCardModal";
 import CreateBoardModal from "./components/CreateBoardModal";
 import CreateWorkspaceModal from "./components/CreateWorkspaceModal";
 import WorkspaceSettings from "./components/WorkspaceSettings";
+import Toast from "./components/Toast";
 import {
   mockUsers,
   mockWorkspaces,
@@ -29,6 +30,10 @@ export default function App() {
   const [currentWorkspaceId, setCurrentWorkspaceId] = useState("ws_001");
   const [currentBoardId, setCurrentBoardId] = useState("brd_001");
   const [boardDetails, setBoardDetails] = useState(null);
+
+  // Toast Notification State for Optimistic UI Feedback
+  const [toast, setToast] = useState(null);
+  const showToast = (message, type = "info") => setToast({ message, type });
 
   // User Authentication State
   const [currentUser, setCurrentUser] = useState(() => {
@@ -206,33 +211,36 @@ export default function App() {
   };
 
   const handleMoveCard = (cardId, sourceListId, targetListId, sourceIndex, targetIndex) => {
-    // Optimistic UI state update for fluid drag and drop experience
-    if (boardDetails && boardDetails.lists) {
-      const newLists = boardDetails.lists.map(l => ({
-        ...l,
-        cards: [...(l.cards || [])]
-      }));
+    if (!boardDetails || !boardDetails.lists) return;
 
-      const sourceList = newLists.find(l => l._id === (sourceListId || targetListId));
-      const targetList = newLists.find(l => l._id === targetListId);
+    // Snapshot state for instant rollback if API fails
+    const previousBoardDetails = JSON.parse(JSON.stringify(boardDetails));
 
-      if (sourceList && targetList) {
-        if (sourceList._id === targetList._id) {
-          const cardIdx = sourceList.cards.findIndex(c => c._id === cardId);
-          if (cardIdx !== -1) {
-            const [movedCard] = sourceList.cards.splice(cardIdx, 1);
-            sourceList.cards.splice(targetIndex !== undefined ? targetIndex : 0, 0, movedCard);
-          }
-        } else {
-          const cardIdx = sourceList.cards.findIndex(c => c._id === cardId);
-          if (cardIdx !== -1) {
-            const [movedCard] = sourceList.cards.splice(cardIdx, 1);
-            movedCard.list = targetListId;
-            targetList.cards.splice(targetIndex !== undefined ? targetIndex : targetList.cards.length, 0, movedCard);
-          }
+    // Optimistic 0ms UI update
+    const newLists = boardDetails.lists.map(l => ({
+      ...l,
+      cards: [...(l.cards || [])]
+    }));
+
+    const sourceList = newLists.find(l => l._id === (sourceListId || targetListId));
+    const targetList = newLists.find(l => l._id === targetListId);
+
+    if (sourceList && targetList) {
+      if (sourceList._id === targetList._id) {
+        const cardIdx = sourceList.cards.findIndex(c => c._id === cardId);
+        if (cardIdx !== -1) {
+          const [movedCard] = sourceList.cards.splice(cardIdx, 1);
+          sourceList.cards.splice(targetIndex !== undefined ? targetIndex : 0, 0, movedCard);
         }
-        setBoardDetails({ ...boardDetails, lists: newLists });
+      } else {
+        const cardIdx = sourceList.cards.findIndex(c => c._id === cardId);
+        if (cardIdx !== -1) {
+          const [movedCard] = sourceList.cards.splice(cardIdx, 1);
+          movedCard.list = targetListId;
+          targetList.cards.splice(targetIndex !== undefined ? targetIndex : targetList.cards.length, 0, movedCard);
+        }
       }
+      setBoardDetails({ ...boardDetails, lists: newLists });
     }
 
     fetch(`${API_BASE}/cards/${cardId}/move`, {
@@ -240,13 +248,22 @@ export default function App() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ targetListId, position: targetIndex !== undefined ? targetIndex : 0 }),
     })
-      .then((res) => res.json())
-      .then(() => fetchBoardDetails(currentBoardId))
-      .catch((err) => console.error("API move card failed:", err));
+      .then((res) => {
+        if (!res.ok) throw new Error("Server move failed");
+        return res.json();
+      })
+      .catch((err) => {
+        console.warn("Optimistic move card failed, rolling back:", err);
+        setBoardDetails(previousBoardDetails);
+        showToast("Network sync failed. Reverted card position.", "error");
+      });
   };
 
   const handleReorderLists = (sourceIndex, destinationIndex) => {
     if (!boardDetails || !boardDetails.lists) return;
+
+    const previousBoardDetails = JSON.parse(JSON.stringify(boardDetails));
+
     const reorderedLists = [...boardDetails.lists];
     const [removed] = reorderedLists.splice(sourceIndex, 1);
     reorderedLists.splice(destinationIndex, 0, removed);
@@ -259,12 +276,51 @@ export default function App() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ boardId: currentBoardId, orderedListIds }),
     })
-      .then((res) => res.json())
-      .then(() => fetchBoardDetails(currentBoardId))
-      .catch((err) => console.error("API reorder lists failed:", err));
+      .then((res) => {
+        if (!res.ok) throw new Error("Server reorder failed");
+        return res.json();
+      })
+      .catch((err) => {
+        console.warn("Optimistic reorder lists failed, rolling back:", err);
+        setBoardDetails(previousBoardDetails);
+        showToast("Server sync failed. Restored column order.", "error");
+      });
   };
 
   const handleCreateCard = (cardData) => {
+    if (!boardDetails) return;
+    const previousBoardDetails = JSON.parse(JSON.stringify(boardDetails));
+
+    const tempCardId = `crd_${Date.now()}`;
+    const newCrd = {
+      _id: tempCardId,
+      key: `${boardDetails?.key || "PULSE"}-${Math.floor(Math.random() * 800 + 100)}`,
+      title: cardData.title,
+      description: cardData.description || "",
+      list: cardData.listId,
+      board: currentBoardId,
+      workspace: currentWorkspaceId,
+      position: 0,
+      priority: cardData.priority || "medium",
+      status: "todo",
+      assignees: [currentUser || users[0]],
+      reporter: currentUser?._id || users[0]._id,
+      labels: [{ name: "New Task", color: "#4F46E5" }],
+      storyPoints: cardData.storyPoints || 1,
+      subtasks: [],
+      comments: [],
+    };
+
+    // Optimistic local update
+    const updatedLists = (boardDetails.lists || []).map((l) => {
+      if (l._id === cardData.listId) {
+        return { ...l, cards: [...l.cards, newCrd] };
+      }
+      return l;
+    });
+    setBoardDetails({ ...boardDetails, lists: updatedLists });
+    showToast("Card created", "success");
+
     fetch(`${API_BASE}/cards`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -275,54 +331,46 @@ export default function App() {
         assignees: currentUser ? [currentUser._id] : [users[0]._id],
       }),
     })
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error("Server card creation failed");
+        return res.json();
+      })
       .then(() => fetchBoardDetails(currentBoardId))
-      .catch(() => {
-        const newCrd = {
-          _id: `crd_${Date.now()}`,
-          key: `${boardDetails?.key || "PULSE"}-${Math.floor(Math.random() * 800 + 100)}`,
-          title: cardData.title,
-          description: cardData.description,
-          list: cardData.listId,
-          board: currentBoardId,
-          workspace: currentWorkspaceId,
-          position: 0,
-          priority: cardData.priority,
-          status: "todo",
-          assignees: [currentUser || users[0]],
-          reporter: currentUser?._id || users[0]._id,
-          labels: [{ name: "New Task", color: "#4F46E5" }],
-          storyPoints: cardData.storyPoints,
-          subtasks: [],
-          comments: [],
-        };
-        const newLists = (boardDetails?.lists || []).map((l) => {
-          if (l._id === cardData.listId) {
-            return { ...l, cards: [...l.cards, newCrd] };
-          }
-          return l;
-        });
-        setBoardDetails({ ...boardDetails, lists: newLists });
+      .catch((err) => {
+        console.warn("Optimistic card creation failed, rolling back:", err);
+        setBoardDetails(previousBoardDetails);
+        showToast("Card creation failed on server. Reverted.", "error");
       });
   };
 
   const handleUpdateCard = (cardId, updatePayload) => {
+    if (!boardDetails) return;
+    const previousBoardDetails = JSON.parse(JSON.stringify(boardDetails));
+
+    // Optimistic update
+    const updatedLists = boardDetails.lists.map((l) => ({
+      ...l,
+      cards: l.cards.map((c) =>
+        c._id === cardId ? { ...c, ...updatePayload } : c
+      ),
+    }));
+    setBoardDetails({ ...boardDetails, lists: updatedLists });
+    showToast("Card updated", "success");
+
     fetch(`${API_BASE}/cards/${cardId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updatePayload),
     })
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error("Server card update failed");
+        return res.json();
+      })
       .then(() => fetchBoardDetails(currentBoardId))
-      .catch(() => {
-        if (!boardDetails) return;
-        const newLists = boardDetails.lists.map((l) => ({
-          ...l,
-          cards: l.cards.map((c) =>
-            c._id === cardId ? { ...c, ...updatePayload } : c,
-          ),
-        }));
-        setBoardDetails({ ...boardDetails, lists: newLists });
+      .catch((err) => {
+        console.warn("Optimistic update card failed, rolling back:", err);
+        setBoardDetails(previousBoardDetails);
+        showToast("Card update failed on server. Reverted.", "error");
       });
   };
 
@@ -338,10 +386,11 @@ export default function App() {
           const newBrd = res.data;
           setCurrentBoardId(newBrd._id);
           fetchWorkspaceData(currentWorkspaceId);
+          showToast("Board created successfully", "success");
         }
       })
       .catch(() => {
-        // Architectural Spec Day 3-4: Auto-seed columns based on workflow template
+        // Fallback local creation
         const newBoardId = `brd_${Date.now()}`;
         const isScrum = boardPayload.type === 'SCRUM';
 
@@ -373,7 +422,6 @@ export default function App() {
           members: users
         };
 
-        // Update local workspace boards list
         setWorkspaces(workspaces.map(ws => {
           if (ws._id === currentWorkspaceId) {
             return {
@@ -387,6 +435,7 @@ export default function App() {
         setBoardDetails(newBoardObj);
         setCurrentBoardId(newBoardId);
         setActiveView('kanban');
+        showToast("Board created locally", "success");
       });
   };
   
@@ -396,54 +445,92 @@ export default function App() {
     );
     if (!listTitle) return;
 
+    if (!boardDetails) return;
+    const previousBoardDetails = JSON.parse(JSON.stringify(boardDetails));
+
+    const newListObj = {
+      _id: `lst_${Date.now()}`,
+      board: currentBoardId,
+      title: listTitle,
+      position: boardDetails?.lists?.length || 0,
+      color: "#3B82F6",
+      cards: [],
+    };
+
+    // Optimistic local add
+    setBoardDetails({
+      ...boardDetails,
+      lists: [...(boardDetails?.lists || []), newListObj],
+    });
+    showToast(`Column "${listTitle}" added`, "success");
+
     fetch(`${API_BASE}/lists`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ boardId: currentBoardId, title: listTitle }),
     })
+      .then((res) => {
+        if (!res.ok) throw new Error("Server list creation failed");
+        return res.json();
+      })
       .then(() => fetchBoardDetails(currentBoardId))
-      .catch(() => {
-        const newListObj = {
-          _id: `lst_${Date.now()}`,
-          board: currentBoardId,
-          title: listTitle,
-          position: boardDetails?.lists?.length || 0,
-          color: "#3B82F6",
-          cards: [],
-        };
-        setBoardDetails({
-          ...boardDetails,
-          lists: [...(boardDetails?.lists || []), newListObj],
-        });
+      .catch((err) => {
+        console.warn("Optimistic list creation failed, rolling back:", err);
+        setBoardDetails(previousBoardDetails);
+        showToast("Server error: Could not create list column. Reverted.", "error");
       });
   };
 
   const handleUpdateList = (listId, listData) => {
+    if (!boardDetails) return;
+    const previousBoardDetails = JSON.parse(JSON.stringify(boardDetails));
+
+    // Optimistic local update
+    const updatedLists = boardDetails.lists.map((l) =>
+      l._id === listId ? { ...l, ...listData } : l
+    );
+    setBoardDetails({ ...boardDetails, lists: updatedLists });
+    showToast("Column updated", "success");
+
     fetch(`${API_BASE}/lists/${listId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(listData),
     })
+      .then((res) => {
+        if (!res.ok) throw new Error("Server list update failed");
+        return res.json();
+      })
       .then(() => fetchBoardDetails(currentBoardId))
-      .catch(() => {
-        if (!boardDetails) return;
-        const updatedLists = boardDetails.lists.map((l) =>
-          l._id === listId ? { ...l, ...listData } : l
-        );
-        setBoardDetails({ ...boardDetails, lists: updatedLists });
+      .catch((err) => {
+        console.warn("Optimistic update list failed, rolling back:", err);
+        setBoardDetails(previousBoardDetails);
+        showToast("Server error: Could not update column. Reverted.", "error");
       });
   };
 
   const handleDeleteList = (listId) => {
     if (!window.confirm("Are you sure you want to delete this column and all its cards?")) return;
+    if (!boardDetails) return;
+    const previousBoardDetails = JSON.parse(JSON.stringify(boardDetails));
+
+    // Optimistic local delete
+    const updatedLists = boardDetails.lists.filter((l) => l._id !== listId);
+    setBoardDetails({ ...boardDetails, lists: updatedLists });
+    showToast("Column deleted", "info");
+
     fetch(`${API_BASE}/lists/${listId}`, {
       method: "DELETE",
     })
+      .then((res) => {
+        if (!res.ok) throw new Error("Server list deletion failed");
+        return res.json();
+      })
       .then(() => fetchBoardDetails(currentBoardId))
-      .catch(() => {
-        if (!boardDetails) return;
-        const updatedLists = boardDetails.lists.filter((l) => l._id !== listId);
-        setBoardDetails({ ...boardDetails, lists: updatedLists });
+      .catch((err) => {
+        console.warn("Optimistic delete list failed, rolling back:", err);
+        setBoardDetails(previousBoardDetails);
+        showToast("Server error: Could not delete column. Restored.", "error");
       });
   };
 
@@ -458,17 +545,29 @@ export default function App() {
   };
 
   const handleDeleteCard = (cardId) => {
+    if (!boardDetails) return;
+    const previousBoardDetails = JSON.parse(JSON.stringify(boardDetails));
+
+    // Optimistic local delete
+    const updatedLists = boardDetails.lists.map((l) => ({
+      ...l,
+      cards: l.cards.filter((c) => c._id !== cardId),
+    }));
+    setBoardDetails({ ...boardDetails, lists: updatedLists });
+    showToast("Card deleted", "info");
+
     fetch(`${API_BASE}/cards/${cardId}`, {
       method: "DELETE",
     })
+      .then((res) => {
+        if (!res.ok) throw new Error("Server card deletion failed");
+        return res.json();
+      })
       .then(() => fetchBoardDetails(currentBoardId))
-      .catch(() => {
-        if (!boardDetails) return;
-        const updatedLists = boardDetails.lists.map((l) => ({
-          ...l,
-          cards: l.cards.filter((c) => c._id !== cardId),
-        }));
-        setBoardDetails({ ...boardDetails, lists: updatedLists });
+      .catch((err) => {
+        console.warn("Optimistic delete card failed, rolling back:", err);
+        setBoardDetails(previousBoardDetails);
+        showToast("Server error: Could not delete card. Restored.", "error");
       });
   };
 
@@ -715,6 +814,9 @@ export default function App() {
         onClose={() => setIsCreateWorkspaceModalOpen(false)}
         onCreateWorkspace={handleCreateWorkspace}
       />
+
+      {/* Toast Notification Container */}
+      <Toast toast={toast} onClose={() => setToast(null)} />
     </div>
   );
 }
