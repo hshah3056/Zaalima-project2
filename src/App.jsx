@@ -418,6 +418,60 @@ export default function App() {
       });
   };
 
+  const handleUpdateList = (listId, listData) => {
+    fetch(`${API_BASE}/lists/${listId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(listData),
+    })
+      .then(() => fetchBoardDetails(currentBoardId))
+      .catch(() => {
+        if (!boardDetails) return;
+        const updatedLists = boardDetails.lists.map((l) =>
+          l._id === listId ? { ...l, ...listData } : l
+        );
+        setBoardDetails({ ...boardDetails, lists: updatedLists });
+      });
+  };
+
+  const handleDeleteList = (listId) => {
+    if (!window.confirm("Are you sure you want to delete this column and all its cards?")) return;
+    fetch(`${API_BASE}/lists/${listId}`, {
+      method: "DELETE",
+    })
+      .then(() => fetchBoardDetails(currentBoardId))
+      .catch(() => {
+        if (!boardDetails) return;
+        const updatedLists = boardDetails.lists.filter((l) => l._id !== listId);
+        setBoardDetails({ ...boardDetails, lists: updatedLists });
+      });
+  };
+
+  const handleQuickAddCard = (listId, title, priority = "medium") => {
+    handleCreateCard({
+      listId,
+      title,
+      description: "",
+      priority,
+      storyPoints: 1,
+    });
+  };
+
+  const handleDeleteCard = (cardId) => {
+    fetch(`${API_BASE}/cards/${cardId}`, {
+      method: "DELETE",
+    })
+      .then(() => fetchBoardDetails(currentBoardId))
+      .catch(() => {
+        if (!boardDetails) return;
+        const updatedLists = boardDetails.lists.map((l) => ({
+          ...l,
+          cards: l.cards.filter((c) => c._id !== cardId),
+        }));
+        setBoardDetails({ ...boardDetails, lists: updatedLists });
+      });
+  };
+
   const handleCreateWorkspace = (wsData) => {
     fetch(`${API_BASE}/workspaces`, {
       method: "POST",
@@ -595,6 +649,10 @@ export default function App() {
               setIsCreateCardModalOpen(true);
             }}
             onAddListClick={handleAddListColumn}
+            onUpdateList={handleUpdateList}
+            onDeleteList={handleDeleteList}
+            onQuickAddCard={handleQuickAddCard}
+            onDeleteCard={handleDeleteCard}
             onMoveCard={handleMoveCard}
             onReorderLists={handleReorderLists}
             currentUser={currentUser}
