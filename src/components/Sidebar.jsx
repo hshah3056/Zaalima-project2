@@ -10,7 +10,10 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  LayoutGrid
+  LayoutGrid,
+  LogOut,
+  UserCheck,
+  UserPlus
 } from 'lucide-react';
 
 export default function Sidebar({ 
@@ -24,6 +27,8 @@ export default function Sidebar({
   workspaceMembers, 
   currentUser, 
   onOpenLoginModal,
+  onLogoutUser,
+  onOpenInviteModal,
   activeView,
   onSelectView
 }) {
@@ -122,6 +127,28 @@ export default function Sidebar({
           >
             <LayoutGrid size={16} />
             {!isCollapsed && <span>Board Canvas</span>}
+          </button>
+
+          <button
+            onClick={() => onSelectView('team')}
+            title="Work with Team Hub"
+            style={{
+              background: activeView === 'team' ? '#EEF2FF' : 'transparent',
+              border: activeView === 'team' ? '1px solid #C7D2FE' : '1px solid transparent',
+              borderRadius: '8px',
+              padding: isCollapsed ? '0.6rem 0' : '0.5rem 0.75rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: isCollapsed ? 'center' : 'flex-start',
+              gap: '0.6rem',
+              cursor: 'pointer',
+              color: activeView === 'team' ? '#4F46E5' : '#334155',
+              fontWeight: 700,
+              fontSize: '0.82rem'
+            }}
+          >
+            <Users size={16} color={activeView === 'team' ? '#4F46E5' : '#059669'} />
+            {!isCollapsed && <span>Work with Team</span>}
           </button>
 
           <button
@@ -244,30 +271,77 @@ export default function Sidebar({
         </button>
       )}
 
-      {/* Team Members List */}
+      {/* Team Members Section */}
       {!isCollapsed && (
-        <div style={{ marginTop: 'auto' }}>
+        <div style={{ marginTop: 'auto', borderTop: '1px solid #F1F5F9', paddingTop: '0.75rem' }}>
           <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748B', fontWeight: 800, marginBottom: '0.4rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <Users size={12} /> Team ({workspaceMembers.length})
+              <Users size={12} /> Team Members ({workspaceMembers.length})
             </span>
-            <button onClick={onOpenLoginModal} style={{ background: 'transparent', border: 'none', color: '#4F46E5', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700 }}>
-              Switch
+            <button onClick={onOpenInviteModal} style={{ background: 'transparent', border: 'none', color: '#059669', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '2px' }}>
+              <UserPlus size={11} /> Invite
             </button>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-            {workspaceMembers.slice(0, 4).map(m => {
-              const isSelf = m.user === currentUser?._id || m.user === currentUser?.id;
-              return (
-                <div key={m.user} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', padding: '3px 4px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10B981' }} />
-                  <span style={{ color: isSelf ? '#4F46E5' : '#334155', fontWeight: isSelf ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {m.user} {isSelf && '(You)'}
-                  </span>
+
+          {/* Active Logged In User Bottom Card */}
+          {currentUser ? (
+            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '0.6rem 0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', overflow: 'hidden' }}>
+                <div style={{ position: 'relative' }}>
+                  <img src={currentUser.avatar} alt={currentUser.name} style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} />
+                  <span style={{ position: 'absolute', bottom: 0, right: 0, width: '8px', height: '8px', borderRadius: '50%', background: '#059669', border: '1px solid #FFF' }} />
                 </div>
-              );
-            })}
-          </div>
+                <div style={{ overflow: 'hidden' }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {currentUser.name}
+                  </div>
+                  <div style={{ fontSize: '0.65rem', color: '#4F46E5', textTransform: 'capitalize', fontWeight: 600 }}>
+                    {currentUser.role}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={onLogoutUser}
+                title="Sign Out / Logout"
+                style={{
+                  background: '#FEF2F2',
+                  color: '#DC2626',
+                  border: '1px solid #FCA5A5',
+                  borderRadius: '6px',
+                  padding: '0.3rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <LogOut size={13} />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={onOpenLoginModal}
+              style={{
+                width: '100%',
+                background: '#EEF2FF',
+                border: '1px solid #C7D2FE',
+                color: '#4F46E5',
+                borderRadius: '8px',
+                padding: '0.5rem',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                marginTop: '0.5rem'
+              }}
+            >
+              <UserCheck size={14} /> Sign In to Workspace
+            </button>
+          )}
         </div>
       )}
     </aside>

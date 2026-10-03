@@ -3,7 +3,10 @@ import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import BoardView from "./components/BoardView";
 import UserPanel from "./components/UserPanel";
+import TeamView from "./components/TeamView";
+import LoginForm from "./components/LoginForm";
 import LoginModal from "./components/LoginModal";
+import InviteMemberModal from "./components/InviteMemberModal";
 import DataModelsModal from "./components/DataModelsModal";
 import CardModal from "./components/CardModal";
 import CreateCardModal from "./components/CreateCardModal";
@@ -35,12 +38,13 @@ export default function App() {
         return JSON.parse(saved);
       } catch (e) {}
     }
-    return mockUsers[0];
+    return null;
   });
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
   // Modals & Views
-  const [activeView, setActiveView] = useState("kanban"); // 'kanban' | 'user_panel' | 'models'
+  const [activeView, setActiveView] = useState("kanban"); // 'kanban' | 'user_panel' | 'team' | 'models' | 'settings'
   const [isDataModelsModalOpen, setIsDataModelsModalOpen] = useState(false);
   const [schemaData, setSchemaData] = useState(null);
   const [activeCardId, setActiveCardId] = useState(null);
@@ -136,7 +140,7 @@ export default function App() {
       });
   };
 
-  // Auth Handlers
+  // Auth & Team Handlers
   const handleLoginUser = (userObj) => {
     setCurrentUser(userObj);
     localStorage.setItem("pulse_current_user", JSON.stringify(userObj));
@@ -148,8 +152,48 @@ export default function App() {
   };
 
   const handleLogoutUser = () => {
+    if (currentUser) {
+      fetch(`${API_BASE}/auth/logout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: currentUser._id }),
+      }).catch(() => {});
+    }
     setCurrentUser(null);
     localStorage.removeItem("pulse_current_user");
+    setIsLoginModalOpen(true);
+  };
+
+  const handleAddTeamMember = (memberPayload) => {
+    fetch(`${API_BASE}/users`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(memberPayload),
+    })
+      .then((res) => res.json())
+      .then((res) => {
+        if (res.status === "success" && res.data) {
+          const newUser = res.data;
+          setUsers((prev) => {
+            if (prev.some((u) => u._id === newUser._id)) return prev;
+            return [...prev, newUser];
+          });
+
+          handleLoginUser(newUser);
+        }
+      })
+      .catch(() => {
+        const localNewUser = {
+          _id: `usr_${Date.now()}`,
+          name: memberPayload.name,
+          email: memberPayload.email,
+          role: memberPayload.role,
+          avatar: memberPayload.avatar,
+          status: "online",
+        };
+        setUsers([...users, localNewUser]);
+        handleLoginUser(localNewUser);
+      });
   };
 
   // Workspace & Card Actions
@@ -435,6 +479,16 @@ export default function App() {
     }
   }
 
+  if (!currentUser) {
+    return (
+      <LoginForm
+        users={users}
+        onLogin={handleLoginUser}
+        onRegisterAndLogin={handleAddTeamMember}
+      />
+    );
+  }
+
   return (
     <div
       style={{
@@ -466,6 +520,8 @@ export default function App() {
         users={users}
         currentUser={currentUser}
         onOpenLoginModal={() => setIsLoginModalOpen(true)}
+        onLogoutUser={handleLogoutUser}
+        onOpenInviteModal={() => setIsInviteModalOpen(true)}
       />
 
       {/* Main Workspace Layout */}
@@ -484,11 +540,13 @@ export default function App() {
           workspaceMembers={currentWorkspace?.members || []}
           currentUser={currentUser}
           onOpenLoginModal={() => setIsLoginModalOpen(true)}
+          onLogoutUser={handleLogoutUser}
+          onOpenInviteModal={() => setIsInviteModalOpen(true)}
           activeView={activeView}
           onSelectView={(view) => setActiveView(view)}
         />
 
-        {/* View Switcher: Workspace Settings vs User Panel vs Kanban Board */}
+        {/* View Switcher: Settings vs User Panel vs Team View vs Kanban Board */}
         {activeView === "settings" ? (
           <WorkspaceSettings
             workspace={currentWorkspace}
@@ -497,6 +555,20 @@ export default function App() {
             currentUser={currentUser}
             onUpdateWorkspace={handleUpdateWorkspace}
             onOpenCreateBoard={() => setIsCreateBoardModalOpen(true)}
+          />
+        ) : activeView === "team" ? (
+          <TeamView
+            currentWorkspace={currentWorkspace}
+            users={users}
+            currentUser={currentUser}
+            boards={workspaceBoards}
+            cards={allCards}
+            onOpenInviteModal={() => setIsInviteModalOpen(true)}
+            onSelectBoard={(boardId) => {
+              setCurrentBoardId(boardId);
+              setActiveView("kanban");
+            }}
+            onOpenLoginModal={() => setIsLoginModalOpen(true)}
           />
         ) : activeView === "user_panel" ? (
           <UserPanel
@@ -538,6 +610,13 @@ export default function App() {
         currentUser={currentUser}
         onLogin={handleLoginUser}
         onLogout={handleLogoutUser}
+      />
+
+      {/* Invite Team Member Modal */}
+      <InviteMemberModal
+        isOpen={isInviteModalOpen}
+        onClose={() => setIsInviteModalOpen(false)}
+        onAddTeamMember={handleAddTeamMember}
       />
 
       {/* Day 1-2 Data Models Inspector Modal */}

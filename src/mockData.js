@@ -5,6 +5,8 @@
 export const mockUsers = [
   {
     _id: "usr_001",
+    accountId: "alex123",
+    password: "password123",
     name: "Alex Rivera",
     email: "alex.rivera@pulsework.io",
     avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
@@ -14,6 +16,8 @@ export const mockUsers = [
   },
   {
     _id: "usr_002",
+    accountId: "sarah123",
+    password: "password123",
     name: "Sarah Chen",
     email: "sarah.chen@pulsework.io",
     avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80",
@@ -23,6 +27,8 @@ export const mockUsers = [
   },
   {
     _id: "usr_003",
+    accountId: "marcus123",
+    password: "password123",
     name: "Marcus Vance",
     email: "marcus.vance@pulsework.io",
     avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
@@ -32,6 +38,8 @@ export const mockUsers = [
   },
   {
     _id: "usr_004",
+    accountId: "elena123",
+    password: "password123",
     name: "Elena Rostova",
     email: "elena.r@pulsework.io",
     avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80",
