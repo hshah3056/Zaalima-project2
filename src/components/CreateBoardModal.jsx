@@ -13,6 +13,17 @@ export default function CreateBoardModal({ isOpen, onClose, currentWorkspaceId, 
   const [description, setDescription] = useState('');
   const [error, setError] = useState('');
 
+  // Close modal on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   // Architectural Spec Validation Regex: ^[A-Z][A-Z0-9]{1,9}$
   const KEY_REGEX = /^[A-Z][A-Z0-9]{1,9}$/;
 
