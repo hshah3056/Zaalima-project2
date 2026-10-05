@@ -18,7 +18,11 @@ import {
   MessageSquare,
   ChevronRight,
   LogOut,
-  UserCheck
+  UserCheck,
+  Zap,
+  Activity,
+  Award,
+  BarChart3
 } from 'lucide-react';
 
 export default function UserPanel({ 
@@ -40,7 +44,6 @@ export default function UserPanel({
 
   useEffect(() => {
     if (!currentUser) return;
-    // Fetch live user dashboard data from backend
     fetch(`http://localhost:5001/api/users/${currentUser._id}/dashboard`)
       .then(res => res.json())
       .then(res => {
@@ -48,17 +51,15 @@ export default function UserPanel({
           setUserDashboardData(res.data);
         }
       })
-      .catch(() => {
-        // Local state calculation fallback
-      });
+      .catch(() => {});
   }, [currentUser, cards]);
 
   if (!currentUser) {
     return (
-      <div style={{ flex: 1, padding: '3rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#F8FAFC' }}>
+      <div style={{ flex: 1, padding: '3rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#FFFFFF' }}>
         <UserCheck size={48} color="#94A3B8" />
         <h2 style={{ marginTop: '1rem', color: '#0F172A', fontWeight: 800 }}>No User Currently Logged In</h2>
-        <p style={{ color: '#64748B', marginBottom: '1.5rem' }}>Please log in to view your personalized task panel and workspace data.</p>
+        <p style={{ color: '#64748B', marginBottom: '1.5rem' }}>Please log in to view your personalized dashboard.</p>
         <button
           onClick={onOpenLoginModal}
           style={{
@@ -72,13 +73,13 @@ export default function UserPanel({
             cursor: 'pointer'
           }}
         >
-          Open Login Screen
+          Open Login Portal
         </button>
       </div>
     );
   }
 
-  // Filter assigned cards
+  // Filter assigned cards for active user
   const allUserAssignedCards = cards.filter(c => c.assignees && c.assignees.some(a => (a._id || a) === currentUser._id));
   
   const filteredCards = allUserAssignedCards.filter(c => {
@@ -90,64 +91,101 @@ export default function UserPanel({
     return true;
   });
 
-  // Calculate user metrics
+  // User metrics calculation
   const totalAssigned = allUserAssignedCards.length;
   const inProgressCount = allUserAssignedCards.filter(c => c.status === 'in_progress' || c.status === 'todo').length;
   const completedCount = allUserAssignedCards.filter(c => c.status === 'done' || c.status === 'completed').length;
+  const completionRate = totalAssigned > 0 ? Math.round((completedCount / totalAssigned) * 100) : 0;
   const totalStoryPoints = allUserAssignedCards.reduce((acc, c) => acc + (Number(c.storyPoints) || 0), 0);
   
   // Workspaces user belongs to
   const userWorkspaces = workspaces.filter(w => w.members && w.members.some(m => (m.user || m) === currentUser._id));
 
   return (
-    <main style={{ flex: 1, padding: '1.75rem', overflowY: 'auto', background: '#F8FAFC', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+    <main style={{ flex: 1, padding: '1.75rem', overflowY: 'auto', background: '#FFFFFF', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       
-      {/* User Header Profile Card */}
-      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+      {/* Executive Welcome Hero Banner */}
+      <div style={{
+        background: 'linear-gradient(135deg, #EEF2FF 0%, #FAF5FF 50%, #F0F9FF 100%)',
+        border: '1px solid #C7D2FE',
+        borderRadius: '16px',
+        padding: '1.75rem',
+        boxShadow: 'var(--shadow-sm)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '1.25rem',
+        position: 'relative',
+        overflow: 'hidden'
+      }}>
+        {/* Subtle Decorative Glow Background */}
+        <div style={{
+          position: 'absolute',
+          top: '-30px',
+          right: '-30px',
+          width: '160px',
+          height: '160px',
+          borderRadius: '50%',
+          background: 'rgba(79, 70, 229, 0.08)',
+          pointerEvents: 'none'
+        }} />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', zIndex: 1 }}>
           <div style={{ position: 'relative' }}>
             <img 
               src={currentUser.avatar} 
               alt={currentUser.name} 
-              style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', border: '3px solid #EEF2FF', boxShadow: '0 4px 12px rgba(79, 70, 229, 0.15)' }} 
-            />
-            <span 
-              title={currentUser.status}
-              style={{ 
-                position: 'absolute', bottom: '2px', right: '2px', width: '14px', height: '14px', 
-                borderRadius: '50%', background: '#059669', border: '2px solid #FFFFFF' 
+              style={{
+                width: '68px',
+                height: '68px',
+                borderRadius: '50%',
+                objectFit: 'cover',
+                border: '3px solid #FFFFFF',
+                boxShadow: '0 6px 16px rgba(79, 70, 229, 0.2)'
               }} 
             />
+            <span className="status-online-dot" style={{ position: 'absolute', bottom: '2px', right: '2px', border: '2px solid #FFFFFF' }} title="Online Status" />
           </div>
 
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
-                {currentUser.name}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <h1 style={{ fontSize: '1.45rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
+                Welcome back, {currentUser.name}! 👋
               </h1>
-              <span style={{ background: '#EEF2FF', color: '#4F46E5', padding: '2px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase' }}>
+              <span style={{
+                background: '#4F46E5',
+                color: '#FFFFFF',
+                padding: '2px 10px',
+                borderRadius: '12px',
+                fontSize: '0.72rem',
+                fontWeight: 800,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em'
+              }}>
                 {currentUser.role}
               </span>
             </div>
-            <p style={{ fontSize: '0.85rem', color: '#64748B', marginTop: '2px' }}>
-              {currentUser.email} • Workspace Active Panel Session
+            <p style={{ fontSize: '0.85rem', color: '#475569', marginTop: '4px', fontWeight: 500 }}>
+              {currentUser.email} • Active Workspace Session ({userWorkspaces.length} Connected Workspaces)
             </p>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', padding: '0.5rem 1rem', borderRadius: '10px', textAlign: 'right' }}>
-            <span style={{ fontSize: '0.7rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>Active Workspaces</span>
-            <strong style={{ fontSize: '1.1rem', color: '#0F172A' }}>{userWorkspaces.length}</strong>
+        {/* Quick Action Switcher */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', zIndex: 1 }}>
+          <div style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', padding: '0.5rem 1rem', borderRadius: '10px', textAlign: 'center', boxShadow: 'var(--shadow-sm)' }}>
+            <span style={{ fontSize: '0.68rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>Task Velocity</span>
+            <strong style={{ fontSize: '1.15rem', color: '#059669', fontWeight: 800 }}>{completionRate}% Done</strong>
           </div>
 
           <button
             onClick={onOpenLoginModal}
             style={{
               background: '#FFFFFF',
-              border: '1px solid #CBD5E1',
-              color: '#334155',
-              padding: '0.6rem 1rem',
+              border: '1px solid #C7D2FE',
+              color: '#4F46E5',
+              padding: '0.65rem 1.1rem',
               borderRadius: '10px',
               fontSize: '0.85rem',
               fontWeight: 700,
@@ -163,70 +201,91 @@ export default function UserPanel({
         </div>
       </div>
 
-      {/* KPI Stats Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '1.25rem', boxShadow: 'var(--shadow-sm)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#64748B', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase' }}>
+      {/* Executive KPI Stats Cards (4 Column Grid) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '1.25rem' }}>
+        
+        <div className="glass-card" style={{ padding: '1.25rem', borderLeft: '4px solid #4F46E5' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#64748B', fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase' }}>
             <span>Assigned Tasks</span>
-            <Kanban size={18} color="#4F46E5" />
+            <Kanban size={20} color="#4F46E5" />
           </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0F172A', marginTop: '0.5rem' }}>
+          <div style={{ fontSize: '1.9rem', fontWeight: 800, color: '#0F172A', marginTop: '0.5rem' }}>
             {totalAssigned}
           </div>
-          <span style={{ fontSize: '0.75rem', color: '#64748B' }}>Tasks assigned to {currentUser.name.split(' ')[0]}</span>
+          <span style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>Active workload assigned to you</span>
         </div>
 
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '1.25rem', boxShadow: 'var(--shadow-sm)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#64748B', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase' }}>
-            <span>In Progress / Active</span>
-            <Clock size={18} color="#D97706" />
+        <div className="glass-card" style={{ padding: '1.25rem', borderLeft: '4px solid #D97706' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#64748B', fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase' }}>
+            <span>Active Sprint Items</span>
+            <Clock size={20} color="#D97706" />
           </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#D97706', marginTop: '0.5rem' }}>
+          <div style={{ fontSize: '1.9rem', fontWeight: 800, color: '#D97706', marginTop: '0.5rem' }}>
             {inProgressCount}
           </div>
-          <span style={{ fontSize: '0.75rem', color: '#64748B' }}>Currently requiring action</span>
+          <span style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>Tasks currently in progress</span>
         </div>
 
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '1.25rem', boxShadow: 'var(--shadow-sm)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#64748B', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase' }}>
+        <div className="glass-card" style={{ padding: '1.25rem', borderLeft: '4px solid #059669' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#64748B', fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase' }}>
             <span>Completed Tasks</span>
-            <CheckCircle2 size={18} color="#059669" />
+            <CheckCircle2 size={20} color="#059669" />
           </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#059669', marginTop: '0.5rem' }}>
+          <div style={{ fontSize: '1.9rem', fontWeight: 800, color: '#059669', marginTop: '0.5rem' }}>
             {completedCount}
           </div>
-          <span style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 600 }}>Successfully delivered</span>
+          <span style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 700 }}>{completionRate}% Total completion rate</span>
         </div>
 
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '1.25rem', boxShadow: 'var(--shadow-sm)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#64748B', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase' }}>
-            <span>Story Points</span>
-            <TrendingUp size={18} color="#0891B2" />
+        <div className="glass-card" style={{ padding: '1.25rem', borderLeft: '4px solid #0891B2' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#64748B', fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase' }}>
+            <span>Total Story Points</span>
+            <TrendingUp size={20} color="#0891B2" />
           </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0891B2', marginTop: '0.5rem' }}>
+          <div style={{ fontSize: '1.9rem', fontWeight: 800, color: '#0891B2', marginTop: '0.5rem' }}>
             {totalStoryPoints} pts
           </div>
-          <span style={{ fontSize: '0.75rem', color: '#64748B' }}>Sprint capacity allocated</span>
+          <span style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>Sprint story points allocated</span>
         </div>
+
       </div>
 
-      {/* Main Panel Content: Filtered Assigned Tasks Matrix */}
+      {/* Progress Breakdown Bar */}
+      {totalAssigned > 0 && (
+        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '1.25rem', boxShadow: 'var(--shadow-sm)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <BarChart3 size={16} color="#4F46E5" /> Task Completion Velocity Progress
+            </span>
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#059669' }}>
+              {completedCount} / {totalAssigned} Delivered ({completionRate}%)
+            </span>
+          </div>
+          
+          <div style={{ height: '10px', background: '#F1F5F9', borderRadius: '5px', overflow: 'hidden', display: 'flex' }}>
+            <div style={{ width: `${completionRate}%`, background: 'linear-gradient(90deg, #4F46E5 0%, #10B981 100%)', borderRadius: '5px', transition: 'width 0.4s ease' }} title={`Completed: ${completionRate}%`} />
+          </div>
+        </div>
+      )}
+
+      {/* Filterable Task Matrix Section */}
       <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '16px', padding: '1.5rem', boxShadow: 'var(--shadow-sm)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         
-        {/* Panel Toolbar */}
+        {/* Matrix Header & Filters */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid #F1F5F9', pb: '1rem' }}>
           <div>
             <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Layers size={20} color="#4F46E5" /> User Data Panel — My Assigned Tasks ({filteredCards.length})
+              <Layers size={20} color="#4F46E5" /> Assigned Tasks Matrix ({filteredCards.length})
             </h2>
             <p style={{ fontSize: '0.8rem', color: '#64748B' }}>
-              Personalized tasks assigned to <strong>{currentUser.name}</strong> across all workspace boards.
+              Tasks assigned directly to <strong>{currentUser.name}</strong> across all active board columns.
             </p>
           </div>
 
-          {/* Filter Controls */}
+          {/* Filter Controls Bar */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-            {/* Search Input */}
+            
+            {/* Live Search Input */}
             <div style={{ position: 'relative' }}>
               <Search size={15} color="#94A3B8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
               <input
@@ -237,41 +296,20 @@ export default function UserPanel({
                 style={{
                   paddingLeft: '2rem',
                   paddingRight: '0.75rem',
-                  paddingTop: '0.4rem',
-                  paddingBottom: '0.4rem',
+                  paddingTop: '0.45rem',
+                  paddingBottom: '0.45rem',
                   background: '#F8FAFC',
                   border: '1px solid #CBD5E1',
                   borderRadius: '8px',
                   fontSize: '0.8rem',
                   color: '#0F172A',
-                  outline: 'none'
+                  outline: 'none',
+                  width: '180px'
                 }}
               />
             </div>
 
-            {/* Status Filter */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              style={{
-                background: '#F8FAFC',
-                color: '#0F172A',
-                border: '1px solid #CBD5E1',
-                borderRadius: '8px',
-                padding: '0.4rem 0.75rem',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                outline: 'none'
-              }}
-            >
-              <option value="all">All Statuses</option>
-              <option value="todo">To Do</option>
-              <option value="in_progress">In Progress</option>
-              <option value="in_review">Code Review</option>
-              <option value="done">Done</option>
-            </select>
-
-            {/* Priority Filter */}
+            {/* Priority Select */}
             <select
               value={priorityFilter}
               onChange={(e) => setPriorityFilter(e.target.value)}
@@ -280,7 +318,7 @@ export default function UserPanel({
                 color: '#0F172A',
                 border: '1px solid #CBD5E1',
                 borderRadius: '8px',
-                padding: '0.4rem 0.75rem',
+                padding: '0.45rem 0.75rem',
                 fontSize: '0.8rem',
                 fontWeight: 600,
                 outline: 'none'
@@ -299,8 +337,8 @@ export default function UserPanel({
         {filteredCards.length === 0 ? (
           <div style={{ padding: '3rem', textAlign: 'center', color: '#64748B', background: '#F8FAFC', borderRadius: '12px', border: '1px dashed #CBD5E1' }}>
             <Kanban size={36} color="#CBD5E1" style={{ margin: '0 auto 0.5rem auto' }} />
-            <div style={{ fontWeight: 700, color: '#334155' }}>No assigned tasks match your current filter settings.</div>
-            <p style={{ fontSize: '0.8rem', marginTop: '4px' }}>Try clearing filters or assigning new cards to {currentUser.name}.</p>
+            <div style={{ fontWeight: 700, color: '#334155' }}>No assigned tasks match your search or filter criteria.</div>
+            <p style={{ fontSize: '0.8rem', marginTop: '4px' }}>Try adjusting filters or assigning new cards to {currentUser.name}.</p>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -311,18 +349,14 @@ export default function UserPanel({
               return (
                 <div
                   key={card._id}
+                  className="glass-card"
                   style={{
-                    background: '#FFFFFF',
-                    border: '1px solid #E2E8F0',
-                    borderLeft: `4px solid ${targetList?.color || '#4F46E5'}`,
-                    borderRadius: '12px',
                     padding: '1rem 1.25rem',
-                    boxShadow: 'var(--shadow-sm)',
+                    borderLeft: `4px solid ${targetList?.color || '#4F46E5'}`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     gap: '1rem',
-                    transition: 'all 0.15s',
                     cursor: 'pointer'
                   }}
                   onClick={() => onCardClick(card._id)}
@@ -358,7 +392,7 @@ export default function UserPanel({
                     )}
                   </div>
 
-                  {/* Right Side Info & Quick Board Navigation */}
+                  {/* Right Side Navigation Button */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }} onClick={(e) => e.stopPropagation()}>
                     <div style={{ textAlign: 'right' }}>
                       <span style={{ fontSize: '0.7rem', color: '#64748B', display: 'block' }}>Story Points</span>
@@ -369,7 +403,7 @@ export default function UserPanel({
                       onClick={() => {
                         if (targetBoard) onSelectBoard(targetBoard._id);
                       }}
-                      title="Navigate to Board View"
+                      title="Navigate to Board Canvas"
                       style={{
                         background: '#EEF2FF',
                         color: '#4F46E5',
@@ -394,10 +428,10 @@ export default function UserPanel({
         )}
       </div>
 
-      {/* User Workspaces & Team Members Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+      {/* Workspaces & Team Collaborators Summary Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
         
-        {/* User Workspaces Card */}
+        {/* Workspaces Card */}
         <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '16px', padding: '1.25rem', boxShadow: 'var(--shadow-sm)' }}>
           <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0F172A', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Folder size={18} color="#4F46E5" /> Workspaces Joined ({userWorkspaces.length})
@@ -420,7 +454,7 @@ export default function UserPanel({
           </div>
         </div>
 
-        {/* User Team Collaborators */}
+        {/* Team Collaborators Card */}
         <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '16px', padding: '1.25rem', boxShadow: 'var(--shadow-sm)' }}>
           <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0F172A', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <UserCheck size={18} color="#059669" /> Team Collaborators ({users.length})

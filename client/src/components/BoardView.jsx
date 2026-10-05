@@ -15,7 +15,11 @@ import {
   GripVertical,
   X,
   Check,
-  Palette
+  Palette,
+  Layers,
+  CheckCircle2,
+  AlertCircle,
+  Users
 } from 'lucide-react';
 
 export default function BoardView({ 
@@ -52,6 +56,12 @@ export default function BoardView({
       </div>
     );
   }
+
+  // Board KPI Metrics Calculation
+  const allBoardCards = board.lists ? board.lists.flatMap(l => l.cards || []) : [];
+  const totalCardsCount = allBoardCards.length;
+  const doneCardsCount = allBoardCards.filter(c => c.status === 'done' || c.status === 'completed').length;
+  const urgentCardsCount = allBoardCards.filter(c => c.priority === 'urgent' || c.priority === 'high').length;
 
   const getPriorityBadgeClass = (priority) => {
     switch (priority) {
@@ -250,6 +260,35 @@ export default function BoardView({
           >
             <Plus size={14} /> Add Card
           </button>
+        </div>
+      </div>
+
+      {/* Board Executive Metric Ribbon */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '1.25rem',
+        marginBottom: '1.25rem',
+        background: 'linear-gradient(90deg, #F8FAFC 0%, #EEF2FF 100%)',
+        border: '1px solid #E2E8F0',
+        borderRadius: '10px',
+        padding: '0.6rem 1rem',
+        flexWrap: 'wrap'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: '#475569', fontWeight: 600 }}>
+          <Layers size={15} color="#4F46E5" /> Total Cards: <strong style={{ color: '#0F172A', fontWeight: 800 }}>{totalCardsCount}</strong>
+        </div>
+        <div style={{ height: '14px', width: '1px', background: '#CBD5E1' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: '#475569', fontWeight: 600 }}>
+          <CheckCircle2 size={15} color="#059669" /> Completed: <strong style={{ color: '#059669', fontWeight: 800 }}>{doneCardsCount}</strong>
+        </div>
+        <div style={{ height: '14px', width: '1px', background: '#CBD5E1' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: '#475569', fontWeight: 600 }}>
+          <AlertCircle size={15} color={urgentCardsCount > 0 ? '#DC2626' : '#64748B'} /> High / Urgent: <strong style={{ color: urgentCardsCount > 0 ? '#DC2626' : '#0F172A', fontWeight: 800 }}>{urgentCardsCount}</strong>
+        </div>
+        <div style={{ height: '14px', width: '1px', background: '#CBD5E1' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: '#475569', fontWeight: 600 }}>
+          <Users size={15} color="#0891B2" /> Active Lead: <strong style={{ color: '#0F172A', fontWeight: 800 }}>{currentUser?.name?.split(' ')[0] || 'Team'}</strong>
         </div>
       </div>
 
