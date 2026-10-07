@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Plus, AlertCircle } from 'lucide-react';
 import { mockUsers } from '../mockData';
 
@@ -13,11 +13,20 @@ export default function CreateBoardModal({ isOpen, onClose, currentWorkspaceId, 
   const [description, setDescription] = useState('');
   const [error, setError] = useState('');
 
-  // Architectural Spec Validation Regex: ^[A-Z][A-Z0-9]{1,9}$
-  const KEY_REGEX = /^[A-Z][A-Z0-9]{1,9}$/;
+  // Close modal on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   const handleKeyChange = (e) => {
-    const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    // Uppercase, strip non-alphanumeric, max 10 chars
+    const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
     setKey(val);
     if (error) setError('');
   };
@@ -33,12 +42,14 @@ export default function CreateBoardModal({ isOpen, onClose, currentWorkspaceId, 
       return;
     }
 
-    // 2. Key regex validation
-    if (!KEY_REGEX.test(formattedKey)) {
-      setError('Project key must start with an uppercase letter and be 2-10 alphanumeric characters (e.g. CORE, MOB).');
+    // 2. Strict Key constraint: starts with letter, 2-10 uppercase alphanumeric chars
+    const keyRegex = /^[A-Z][A-Z0-9]{1,9}$/;
+    if (!keyRegex.test(formattedKey)) {
+      setError('Project key must start with an uppercase letter and be 2 to 10 alphanumeric characters (e.g., PROJ, ZAAL).');
       return;
     }
 
+    // Trigger creation callback with full workspace configuration payload
     onCreateBoard({
       workspaceId: currentWorkspaceId,
       name: trimmedName,
@@ -49,6 +60,7 @@ export default function CreateBoardModal({ isOpen, onClose, currentWorkspaceId, 
       description: description.trim()
     });
 
+    // Reset local state and close
     setName('');
     setKey('');
     setDescription('');
