@@ -33,7 +33,8 @@ export default function BoardView({
   onDeleteCard,
   onMoveCard,
   onReorderLists,
-  currentUser 
+  currentUser,
+  activeBoardPeers = []
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPriority, setSelectedPriority] = useState('all');
@@ -136,6 +137,10 @@ export default function BoardView({
             </span>
             <span style={{ background: '#F1F5F9', color: '#475569', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', textTransform: 'capitalize', fontWeight: 600 }}>
               {board.type} View
+            </span>
+            <span style={{ background: '#ECFDF5', color: '#059669', padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #A7F3D0' }}>
+              <span className="status-online-dot" style={{ background: '#10B981', width: '6px', height: '6px', borderRadius: '50%' }}></span>
+              {activeBoardPeers.length + 1} Connected {activeBoardPeers.length + 1 === 1 ? 'User' : 'Users'}
             </span>
           </div>
           <p style={{ fontSize: '0.8rem', color: '#64748B', marginTop: '4px' }}>

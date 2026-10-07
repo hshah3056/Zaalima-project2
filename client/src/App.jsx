@@ -22,6 +22,21 @@ import {
   mockCards,
 } from "./mockData";
 
+import {
+  socket,
+  registerUser,
+  joinBoardRoom,
+  leaveBoardRoom,
+  emitCardMoved,
+  emitCardCreated,
+  emitCardUpdated,
+  emitCardDeleted,
+  emitListCreated,
+  emitListUpdated,
+  emitListReordered,
+  emitListDeleted,
+} from "./services/socket";
+
 const API_BASE = "http://localhost:5001/api";
 
 export default function App() {
@@ -30,6 +45,7 @@ export default function App() {
   const [currentWorkspaceId, setCurrentWorkspaceId] = useState("ws_001");
   const [currentBoardId, setCurrentBoardId] = useState("brd_001");
   const [boardDetails, setBoardDetails] = useState(null);
+  const [activeBoardPeers, setActiveBoardPeers] = useState([]);
 
   // Toast Notification State for Optimistic UI Feedback
   const [toast, setToast] = useState(null);
@@ -98,6 +114,103 @@ export default function App() {
       fetchBoardDetails(currentBoardId);
     }
   }, [currentBoardId]);
+
+  // Real-Time Socket.io Connection & Event Engine Subscriptions
+  useEffect(() => {
+    if (currentUser) {
+      registerUser(currentUser._id, currentUser.name);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentBoardId) return;
+
+    joinBoardRoom(currentBoardId, currentUser?._id, currentUser?.name);
+
+    const handleUserJoined = (data) => {
+      showToast(`${data.userName || "A user"} joined the board room`, "info");
+      setActiveBoardPeers((prev) => {
+        if (prev.some((p) => p.socketId === data.socketId)) return prev;
+        return [...prev, data];
+      });
+    };
+
+    const handleUserLeft = (data) => {
+      setActiveBoardPeers((prev) => prev.filter((p) => p.socketId !== data.socketId));
+    };
+
+    const handleUserDisconnected = (data) => {
+      setActiveBoardPeers((prev) => prev.filter((p) => p.socketId !== data.socketId));
+    };
+
+    const handleBoardPeers = (data) => {
+      if (data.boardId === currentBoardId) {
+        setActiveBoardPeers(data.peers || []);
+      }
+    };
+
+    const handleRealtimeCardMoved = (data) => {
+      if (data.socketId === socket.id) return;
+      showToast("Real-time: Card position synced", "info");
+      fetchBoardDetails(currentBoardId);
+    };
+
+    const handleRealtimeCardCreated = (data) => {
+      if (data.socketId === socket.id) return;
+      showToast("Real-time: New card created by team member", "success");
+      fetchBoardDetails(currentBoardId);
+    };
+
+    const handleRealtimeCardUpdated = (data) => {
+      if (data.socketId === socket.id) return;
+      showToast("Real-time: Card updated by team member", "info");
+      fetchBoardDetails(currentBoardId);
+    };
+
+    const handleRealtimeCardDeleted = (data) => {
+      if (data.socketId === socket.id) return;
+      showToast("Real-time: Card deleted by team member", "info");
+      fetchBoardDetails(currentBoardId);
+    };
+
+    const handleRealtimeListEvent = (data) => {
+      if (data.socketId === socket.id) return;
+      fetchBoardDetails(currentBoardId);
+    };
+
+    socket.on("user_joined_board", handleUserJoined);
+    socket.on("user_left_board", handleUserLeft);
+    socket.on("user_disconnected", handleUserDisconnected);
+    socket.on("board_peers", handleBoardPeers);
+
+    socket.on("card_moved", handleRealtimeCardMoved);
+    socket.on("card_created", handleRealtimeCardCreated);
+    socket.on("card_updated", handleRealtimeCardUpdated);
+    socket.on("card_deleted", handleRealtimeCardDeleted);
+
+    socket.on("list_created", handleRealtimeListEvent);
+    socket.on("list_updated", handleRealtimeListEvent);
+    socket.on("list_reordered", handleRealtimeListEvent);
+    socket.on("list_deleted", handleRealtimeListEvent);
+
+    return () => {
+      leaveBoardRoom(currentBoardId);
+      socket.off("user_joined_board", handleUserJoined);
+      socket.off("user_left_board", handleUserLeft);
+      socket.off("user_disconnected", handleUserDisconnected);
+      socket.off("board_peers", handleBoardPeers);
+
+      socket.off("card_moved", handleRealtimeCardMoved);
+      socket.off("card_created", handleRealtimeCardCreated);
+      socket.off("card_updated", handleRealtimeCardUpdated);
+      socket.off("card_deleted", handleRealtimeCardDeleted);
+
+      socket.off("list_created", handleRealtimeListEvent);
+      socket.off("list_updated", handleRealtimeListEvent);
+      socket.off("list_reordered", handleRealtimeListEvent);
+      socket.off("list_deleted", handleRealtimeListEvent);
+    };
+  }, [currentBoardId, currentUser]);
 
   const fetchWorkspaceData = (wsId) => {
     fetch(`${API_BASE}/workspaces/${wsId}`)
@@ -243,6 +356,16 @@ export default function App() {
       setBoardDetails({ ...boardDetails, lists: newLists });
     }
 
+    emitCardMoved({
+      boardId: currentBoardId,
+      cardId,
+      sourceListId,
+      targetListId,
+      sourceIndex,
+      targetIndex,
+      user: currentUser,
+    });
+
     fetch(`${API_BASE}/cards/${cardId}/move`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -271,6 +394,11 @@ export default function App() {
     setBoardDetails({ ...boardDetails, lists: reorderedLists });
 
     const orderedListIds = reorderedLists.map(l => l._id);
+    emitListReordered({
+      boardId: currentBoardId,
+      orderedListIds,
+      user: currentUser,
+    });
     fetch(`${API_BASE}/lists/reorder`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -321,6 +449,13 @@ export default function App() {
     setBoardDetails({ ...boardDetails, lists: updatedLists });
     showToast("Card created", "success");
 
+    emitCardCreated({
+      boardId: currentBoardId,
+      listId: cardData.listId,
+      card: newCrd,
+      user: currentUser,
+    });
+
     fetch(`${API_BASE}/cards`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -356,6 +491,13 @@ export default function App() {
     }));
     setBoardDetails({ ...boardDetails, lists: updatedLists });
     showToast("Card updated", "success");
+
+    emitCardUpdated({
+      boardId: currentBoardId,
+      cardId,
+      card: updatePayload,
+      user: currentUser,
+    });
 
     fetch(`${API_BASE}/cards/${cardId}`, {
       method: "PUT",
@@ -464,6 +606,12 @@ export default function App() {
     });
     showToast(`Column "${listTitle}" added`, "success");
 
+    emitListCreated({
+      boardId: currentBoardId,
+      list: newListObj,
+      user: currentUser,
+    });
+
     fetch(`${API_BASE}/lists`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -492,6 +640,13 @@ export default function App() {
     setBoardDetails({ ...boardDetails, lists: updatedLists });
     showToast("Column updated", "success");
 
+    emitListUpdated({
+      boardId: currentBoardId,
+      listId,
+      list: listData,
+      user: currentUser,
+    });
+
     fetch(`${API_BASE}/lists/${listId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -518,6 +673,12 @@ export default function App() {
     const updatedLists = boardDetails.lists.filter((l) => l._id !== listId);
     setBoardDetails({ ...boardDetails, lists: updatedLists });
     showToast("Column deleted", "info");
+
+    emitListDeleted({
+      boardId: currentBoardId,
+      listId,
+      user: currentUser,
+    });
 
     fetch(`${API_BASE}/lists/${listId}`, {
       method: "DELETE",
@@ -555,6 +716,12 @@ export default function App() {
     }));
     setBoardDetails({ ...boardDetails, lists: updatedLists });
     showToast("Card deleted", "info");
+
+    emitCardDeleted({
+      boardId: currentBoardId,
+      cardId,
+      user: currentUser,
+    });
 
     fetch(`${API_BASE}/cards/${cardId}`, {
       method: "DELETE",
@@ -755,6 +922,7 @@ export default function App() {
             onMoveCard={handleMoveCard}
             onReorderLists={handleReorderLists}
             currentUser={currentUser}
+            activeBoardPeers={activeBoardPeers}
           />
         )}
       </div>

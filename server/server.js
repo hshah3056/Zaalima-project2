@@ -50,22 +50,24 @@ let store = {
 };
 
 // --------------------------------------------------------------------------
-// Milestone 3 (Day 1-2): Socket.io Real-Time Connection & Event Engine
+// Milestone 3 (Day 1-2 & Day 3-5): Socket.io Real-Time Connection & Event Engine
 // --------------------------------------------------------------------------
-const activeConnections = new Map(); // socketId -> { userId, userName, boardId, lastPing }
+const activeConnections = new Map(); // socketId -> { userId, userName, boardId, connectedAt, lastPing }
 
 io.on("connection", (socket) => {
   console.log(`🔌 [Socket Connected] ID: ${socket.id}`);
 
   // Safe registration of logged-in user onto the socket session
   socket.on("register_user", ({ userId, userName }) => {
+    const existing = activeConnections.get(socket.id) || {};
     activeConnections.set(socket.id, {
+      ...existing,
       userId,
       userName,
-      connectedAt: new Date(),
+      connectedAt: existing.connectedAt || new Date(),
     });
     console.log(
-      `👤 [User Registered] ${userName} (${userId}) on socket ${socket.id}`,
+      `👤 [User Registered] ${userName || "User"} (${userId || "guest"}) on socket ${socket.id}`,
     );
   });
 
@@ -73,13 +75,39 @@ io.on("connection", (socket) => {
   socket.on("join_board", ({ boardId, userId, userName }) => {
     if (!boardId) return;
 
-    socket.join(boardId);
+    // Leave existing board room if switching
     const current = activeConnections.get(socket.id) || {};
+    if (current.boardId && current.boardId !== boardId) {
+      socket.leave(current.boardId);
+      socket.to(current.boardId).emit("user_left_board", {
+        socketId: socket.id,
+        userId: current.userId,
+        userName: current.userName,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    socket.join(boardId);
     activeConnections.set(socket.id, { ...current, boardId, userId, userName });
 
     console.log(
       `📋 [Board Joined] Socket ${socket.id} (${userName || "User"}) joined board: ${boardId}`,
     );
+
+    // Get active peers currently connected to this board room
+    const peersInRoom = [];
+    for (const [sId, info] of activeConnections.entries()) {
+      if (info.boardId === boardId && sId !== socket.id) {
+        peersInRoom.push({
+          socketId: sId,
+          userId: info.userId,
+          userName: info.userName,
+        });
+      }
+    }
+
+    // Emit active peers roster back to joining socket
+    socket.emit("board_peers", { boardId, peers: peersInRoom });
 
     // Notify other peers viewing this specific board
     socket.to(boardId).emit("user_joined_board", {
@@ -90,7 +118,7 @@ io.on("connection", (socket) => {
     });
   });
 
-  // Explicit leave room handler (e.g., when switching boards or views)
+  // Explicit leave room handler
   socket.on("leave_board", ({ boardId }) => {
     if (!boardId) return;
 
@@ -105,6 +133,95 @@ io.on("connection", (socket) => {
     socket.to(boardId).emit("user_left_board", {
       socketId: socket.id,
       userId: user?.userId,
+      userName: user?.userName,
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  // ------------------------------------------------------------------------
+  // Day 3-5: Real-Time Event Handlers (Broadcasting to Board Room)
+  // ------------------------------------------------------------------------
+
+  // 1. Broadcast Card Movement
+  socket.on("card_moved", (data) => {
+    if (!data.boardId) return;
+    console.log(`🔄 [Socket Event] card_moved on board ${data.boardId}:`, data.cardId);
+    socket.to(data.boardId).emit("card_moved", {
+      ...data,
+      socketId: socket.id,
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  // 2. Broadcast Card Creation
+  socket.on("card_created", (data) => {
+    if (!data.boardId) return;
+    console.log(`➕ [Socket Event] card_created on board ${data.boardId}:`, data.card?._id || data.card?.title);
+    socket.to(data.boardId).emit("card_created", {
+      ...data,
+      socketId: socket.id,
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  // 3. Broadcast Card Update
+  socket.on("card_updated", (data) => {
+    if (!data.boardId) return;
+    console.log(`✏️ [Socket Event] card_updated on board ${data.boardId}:`, data.cardId || data.card?._id);
+    socket.to(data.boardId).emit("card_updated", {
+      ...data,
+      socketId: socket.id,
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  // 4. Broadcast Card Deletion
+  socket.on("card_deleted", (data) => {
+    if (!data.boardId) return;
+    console.log(`🗑️ [Socket Event] card_deleted on board ${data.boardId}:`, data.cardId);
+    socket.to(data.boardId).emit("card_deleted", {
+      ...data,
+      socketId: socket.id,
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  // 5. Broadcast List Creation
+  socket.on("list_created", (data) => {
+    if (!data.boardId) return;
+    socket.to(data.boardId).emit("list_created", {
+      ...data,
+      socketId: socket.id,
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  // 6. Broadcast List Update
+  socket.on("list_updated", (data) => {
+    if (!data.boardId) return;
+    socket.to(data.boardId).emit("list_updated", {
+      ...data,
+      socketId: socket.id,
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  // 7. Broadcast List Reorder
+  socket.on("list_reordered", (data) => {
+    if (!data.boardId) return;
+    socket.to(data.boardId).emit("list_reordered", {
+      ...data,
+      socketId: socket.id,
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  // 8. Broadcast List Deletion
+  socket.on("list_deleted", (data) => {
+    if (!data.boardId) return;
+    socket.to(data.boardId).emit("list_deleted", {
+      ...data,
+      socketId: socket.id,
       timestamp: new Date().toISOString(),
     });
   });
@@ -610,6 +727,9 @@ app.post("/api/lists", (req, res) => {
   store.lists.push(newList);
   board.lists.push(newList._id);
 
+  // Broadcast list creation to board room
+  io.to(boardId).emit("list_created", { boardId, list: newList });
+
   res.status(201).json({ status: "success", data: newList });
 });
 
@@ -636,6 +756,9 @@ app.put("/api/lists/reorder", (req, res) => {
     .filter((l) => l.board === boardId)
     .sort((a, b) => a.position - b.position);
 
+  // Broadcast list reorder to board room
+  io.to(boardId).emit("list_reordered", { boardId, orderedListIds, lists: updatedBoardLists });
+
   res.json({ status: "success", data: updatedBoardLists });
 });
 
@@ -657,6 +780,12 @@ const handleUpdateList = (req, res) => {
   };
 
   store.lists[listIndex] = updatedList;
+
+  // Broadcast list update to board room
+  if (updatedList.board) {
+    io.to(updatedList.board).emit("list_updated", { boardId: updatedList.board, list: updatedList });
+  }
+
   res.json({ status: "success", data: updatedList });
 };
 
@@ -679,6 +808,12 @@ app.delete("/api/lists/:id", (req, res) => {
   }
 
   store.cards = store.cards.filter((c) => c.list !== deletedList._id);
+
+  // Broadcast list deletion to board room
+  if (deletedList.board) {
+    io.to(deletedList.board).emit("list_deleted", { boardId: deletedList.board, listId: deletedList._id });
+  }
+
   res.json({
     status: "success",
     message: "List and associated cards deleted successfully",
@@ -822,6 +957,9 @@ app.post("/api/cards", (req, res) => {
     createdAt: new Date().toISOString(),
   });
 
+  // Broadcast card creation to board room
+  io.to(boardId).emit("card_created", { boardId, listId, card: newCard });
+
   res.status(201).json({ status: "success", data: newCard });
 });
 
@@ -888,6 +1026,16 @@ const handleUpdateCard = (req, res) => {
     });
   }
 
+  // Broadcast card update to board room
+  if (updatedCard.board) {
+    io.to(updatedCard.board).emit("card_updated", {
+      boardId: updatedCard.board,
+      cardId: updatedCard._id,
+      card: updatedCard,
+      moved,
+    });
+  }
+
   res.json({ status: "success", data: updatedCard });
 };
 
@@ -920,6 +1068,15 @@ app.delete("/api/cards/:id", (req, res) => {
     createdAt: new Date().toISOString(),
   });
 
+  // Broadcast card deletion to board room
+  if (deletedCard.board) {
+    io.to(deletedCard.board).emit("card_deleted", {
+      boardId: deletedCard.board,
+      cardId: deletedCard._id,
+      listId: deletedCard.list,
+    });
+  }
+
   res.json({
     status: "success",
     message: "Card deleted successfully",
@@ -949,6 +1106,18 @@ const handleMoveCardRoute = (req, res) => {
   }
 
   card.updatedAt = new Date().toISOString();
+
+  // Broadcast card movement to board room
+  if (card.board) {
+    io.to(card.board).emit("card_moved", {
+      boardId: card.board,
+      cardId: card._id,
+      targetListId,
+      position: card.position,
+      card,
+    });
+  }
+
   res.json({ status: "success", data: card });
 };
 
@@ -1050,6 +1219,15 @@ app.delete("/api/cards/:id/comments/:commentId", (req, res) => {
     (c) => c.id !== req.params.commentId,
   );
   card.updatedAt = new Date().toISOString();
+
+  // Broadcast card update for subtasks/comments
+  if (card.board) {
+    io.to(card.board).emit("card_updated", {
+      boardId: card.board,
+      cardId: card._id,
+      card,
+    });
+  }
 
   res.json({ status: "success", message: "Comment removed", card });
 });
