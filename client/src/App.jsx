@@ -842,6 +842,7 @@ export default function App() {
         onOpenLoginModal={() => setIsLoginModalOpen(true)}
         onLogoutUser={handleLogoutUser}
         onOpenInviteModal={() => setIsInviteModalOpen(true)}
+        activeBoardPeers={activeBoardPeers}
       />
 
       {/* Main Workspace Layout */}

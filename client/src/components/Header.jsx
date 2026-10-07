@@ -30,7 +30,8 @@ export default function Header({
   currentUser,
   onOpenLoginModal,
   onLogoutUser,
-  onOpenInviteModal
+  onOpenInviteModal,
+  activeBoardPeers = []
 }) {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
@@ -72,7 +73,7 @@ export default function Header({
               PULSE<span style={{ color: '#4F46E5' }}>WORK</span>
             </h1>
             <span style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#059669', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span className="status-online-dot"></span> Team Workspace Active
+              <span className="status-online-dot"></span> Socket.io Live {activeBoardPeers?.length > 0 ? `(${activeBoardPeers.length + 1} online)` : '(Online)'}
             </span>
           </div>
         </div>
