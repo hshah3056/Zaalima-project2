@@ -229,7 +229,21 @@ export default function App() {
       .catch(() => {});
   };
 
+  const [boardActivities, setBoardActivities] = useState([]);
+
+  const fetchBoardActivities = (bId) => {
+    fetch(`${API_BASE}/boards/${bId}/activities`)
+      .then((res) => res.json())
+      .then((res) => {
+        if (res.status === "success" && res.data) {
+          setBoardActivities(res.data);
+        }
+      })
+      .catch(() => {});
+  };
+
   const fetchBoardDetails = (bId) => {
+    fetchBoardActivities(bId);
     fetch(`${API_BASE}/boards/${bId}`)
       .then((res) => res.json())
       .then((res) => {
@@ -924,6 +938,7 @@ export default function App() {
             onReorderLists={handleReorderLists}
             currentUser={currentUser}
             activeBoardPeers={activeBoardPeers}
+            activities={boardActivities}
           />
         )}
       </div>

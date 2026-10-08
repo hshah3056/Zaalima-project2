@@ -19,7 +19,13 @@ import {
   Layers,
   CheckCircle2,
   AlertCircle,
-  Users
+  Users,
+  Activity,
+  Zap,
+  Tag,
+  ArrowRight,
+  ShieldCheck,
+  ChevronRight
 } from 'lucide-react';
 
 export default function BoardView({ 
@@ -34,7 +40,8 @@ export default function BoardView({
   onMoveCard,
   onReorderLists,
   currentUser,
-  activeBoardPeers = []
+  activeBoardPeers = [],
+  activities = []
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPriority, setSelectedPriority] = useState('all');
@@ -49,6 +56,9 @@ export default function BoardView({
   const [quickAddListId, setQuickAddListId] = useState(null);
   const [quickTaskTitle, setQuickTaskTitle] = useState('');
   const [quickTaskPriority, setQuickTaskPriority] = useState('medium');
+
+  // Real-Time Activity Audit Drawer State
+  const [isActivityDrawerOpen, setIsActivityDrawerOpen] = useState(false);
 
   if (!board) {
     return (
@@ -120,13 +130,13 @@ export default function BoardView({
     }
   };
 
-  const colorPresets = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EF4444', '#64748B'];
+  const colorPresets = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EF4444', '#06B6D4', '#64748B'];
 
   return (
-    <main style={{ flex: 1, padding: '1.25rem', overflowX: 'auto', display: 'flex', flexDirection: 'column', background: '#FFFFFF' }}>
+    <main style={{ flex: 1, padding: '1.25rem', overflowX: 'auto', display: 'flex', flexDirection: 'column', background: '#FFFFFF', position: 'relative' }}>
       
       {/* Board Header Bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid #F1F5F9', pb: '1rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid #F1F5F9', paddingBottom: '1rem' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
             <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A' }}>
@@ -148,7 +158,7 @@ export default function BoardView({
           </p>
         </div>
 
-        {/* Board Search, Priority & User Filters */}
+        {/* Board Controls & Action Toolbar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
           
           {/* Live Search Bar */}
@@ -225,22 +235,31 @@ export default function BoardView({
             </button>
           )}
 
-          {/* Add List Column Button */}
+          {/* Real-Time Activity Log Drawer Toggle Button */}
           <button
-            onClick={onAddListClick}
+            onClick={() => setIsActivityDrawerOpen(!isActivityDrawerOpen)}
             style={{
-              background: '#FFFFFF',
-              color: '#4F46E5',
-              border: '1px solid #C7D2FE',
-              padding: '0.45rem 0.85rem',
+              background: isActivityDrawerOpen ? '#EEF2FF' : '#FFFFFF',
+              color: isActivityDrawerOpen ? '#4F46E5' : '#475569',
+              border: isActivityDrawerOpen ? '1px solid #4F46E5' : '1px solid #CBD5E1',
+              padding: '0.45rem 0.75rem',
               borderRadius: '8px',
               fontSize: '0.78rem',
               fontWeight: 700,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '4px'
+              gap: '5px'
             }}
+          >
+            <Activity size={14} color={isActivityDrawerOpen ? '#4F46E5' : '#64748B'} />
+            Activity Log
+          </button>
+
+          {/* Add List Column Button */}
+          <button
+            onClick={onAddListClick}
+            className="btn-secondary"
           >
             <Plus size={14} /> Add Column
           </button>
@@ -248,20 +267,7 @@ export default function BoardView({
           {/* Primary Create Task Button */}
           <button
             onClick={() => onAddCardClick(board.lists?.[0]?._id)}
-            style={{
-              background: '#4F46E5',
-              color: '#FFFFFF',
-              border: 'none',
-              padding: '0.45rem 0.9rem',
-              borderRadius: '8px',
-              fontSize: '0.78rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              boxShadow: '0 2px 8px rgba(79, 70, 229, 0.2)'
-            }}
+            className="btn-primary"
           >
             <Plus size={14} /> Add Card
           </button>
@@ -297,17 +303,16 @@ export default function BoardView({
         </div>
       </div>
 
-      {/* Drag and Drop Canvas Context */}
+      {/* Main Drag and Drop Canvas Context */}
       <DragDropContext onDragEnd={handleDragEnd}>
         <Droppable droppableId="board-columns" direction="horizontal" type="column">
           {(provided) => (
             <div
               ref={provided.innerRef}
               {...provided.droppableProps}
-              style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start', flex: 1, pb: '1.5rem' }}
+              style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start', flex: 1, paddingBottom: '1.5rem' }}
             >
               {board.lists?.map((list, listIndex) => {
-                // Filter list cards based on Search query, Priority filter, and User assignment
                 const displayedCards = list.cards?.filter(c => {
                   if (filterMyTasks && currentUser) {
                     const isAssigned = c.assignees && c.assignees.some(a => (a._id || a) === currentUser._id);
@@ -326,6 +331,7 @@ export default function BoardView({
                 }) || [];
 
                 const isWipExceeded = list.wipLimit > 0 && list.cards?.length > list.wipLimit;
+                const wipRatio = list.wipLimit > 0 ? Math.min(100, Math.round(((list.cards?.length || 0) / list.wipLimit) * 100)) : 0;
 
                 return (
                   <Draggable key={list._id} draggableId={list._id} index={listIndex}>
@@ -351,10 +357,13 @@ export default function BoardView({
                           ...listProvided.draggableProps.style
                         }}
                       >
+                        {/* Column Header Accent Bar */}
+                        <div style={{ height: '3px', background: list.color || '#3B82F6', borderRadius: '3px 3px 0 0', marginBottom: '0.75rem', width: '100%' }} />
+
                         {/* Column Header Bar */}
                         <div
                           {...listProvided.dragHandleProps}
-                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', cursor: 'grab' }}
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', cursor: 'grab' }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
                             <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: list.color || '#3B82F6', flexShrink: 0 }} />
@@ -429,6 +438,24 @@ export default function BoardView({
                           </div>
                         </div>
 
+                        {/* Column WIP Capacity Progress Bar */}
+                        {list.wipLimit > 0 && (
+                          <div style={{ marginBottom: '0.75rem', width: '100%' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: isWipExceeded ? '#DC2626' : '#64748B', fontWeight: 700, marginBottom: '2px' }}>
+                              <span>WIP Capacity</span>
+                              <span>{list.cards?.length || 0} / {list.wipLimit} ({wipRatio}%)</span>
+                            </div>
+                            <div style={{ height: '4px', background: '#E2E8F0', borderRadius: '2px', overflow: 'hidden' }}>
+                              <div style={{
+                                height: '100%',
+                                width: `${wipRatio}%`,
+                                background: isWipExceeded ? '#EF4444' : wipRatio >= 80 ? '#F59E0B' : '#10B981',
+                                transition: 'width 0.3s ease'
+                              }} />
+                            </div>
+                          </div>
+                        )}
+
                         {/* List Column Header Dropdown Menu */}
                         {activeListMenuId === list._id && (
                           <div style={{
@@ -484,25 +511,6 @@ export default function BoardView({
                                 <Trash2 size={13} /> Delete Column
                               </button>
                             )}
-                          </div>
-                        )}
-
-                        {/* WIP Exceeded Warning Alert Banner */}
-                        {isWipExceeded && (
-                          <div style={{
-                            background: '#FEF2F2',
-                            border: '1px solid #FCA5A5',
-                            borderRadius: '6px',
-                            padding: '4px 8px',
-                            fontSize: '0.7rem',
-                            color: '#B91C1C',
-                            marginBottom: '0.75rem',
-                            fontWeight: 700,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px'
-                          }}>
-                            <AlertTriangle size={12} /> WIP Limit Exceeded ({list.cards.length}/{list.wipLimit})
                           </div>
                         )}
 
@@ -774,6 +782,67 @@ export default function BoardView({
           )}
         </Droppable>
       </DragDropContext>
+
+      {/* Real-Time Activity Audit Log Drawer Side Panel */}
+      {isActivityDrawerOpen && (
+        <div 
+          className="glass-panel animate-modal"
+          style={{
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            bottom: 0,
+            width: '360px',
+            background: '#FFFFFF',
+            borderLeft: '1px solid #E2E8F0',
+            boxShadow: 'var(--shadow-xl)',
+            zIndex: 60,
+            display: 'flex',
+            flexDirection: 'column',
+            padding: '1.25rem'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', borderBottom: '1px solid #F1F5F9', paddingBottom: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Activity size={18} color="#4F46E5" />
+              <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0F172A' }}>Board Activity Feed</h3>
+            </div>
+            <button onClick={() => setIsActivityDrawerOpen(false)} style={{ background: 'transparent', border: 'none', color: '#64748B', cursor: 'pointer' }}>
+              <X size={18} />
+            </button>
+          </div>
+
+          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            {activities.length === 0 ? (
+              <div style={{ color: '#94A3B8', fontSize: '0.8rem', textAlign: 'center', paddingTop: '2rem' }}>
+                No recent activity recorded for this board.
+              </div>
+            ) : (
+              activities.map((act) => (
+                <div key={act._id} style={{ display: 'flex', gap: '0.75rem', background: '#F8FAFC', padding: '0.75rem', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                  <img 
+                    src={act.userDetail?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'} 
+                    alt="User" 
+                    style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover', marginTop: '2px' }} 
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0F172A' }}>
+                      {act.userDetail?.name || 'Collaborator'}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#475569', marginTop: '2px' }}>
+                      {act.action === 'created_card' ? 'created card' : act.action === 'moved_card' ? 'moved card' : act.action === 'deleted_card' ? 'deleted card' : 'updated'} 
+                      <strong style={{ color: '#4F46E5', marginLeft: '4px' }}>"{act.details?.cardTitle || 'Task'}"</strong>
+                    </div>
+                    <div style={{ fontSize: '0.65rem', color: '#94A3B8', marginTop: '4px', fontFamily: 'var(--font-mono)' }}>
+                      {new Date(act.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
     </main>
   );
 }

@@ -1233,6 +1233,20 @@ app.delete("/api/cards/:id/comments/:commentId", (req, res) => {
 });
 
 // --------------------------------------------------------------------------
+// Board Activity Audit Logs Endpoint
+// --------------------------------------------------------------------------
+app.get("/api/boards/:id/activities", (req, res) => {
+  const boardId = req.params.id;
+  const boardActivities = store.activities
+    .filter((a) => a.board === boardId || !a.board)
+    .map((act) => {
+      const userObj = store.users.find((u) => u._id === act.user);
+      return { ...act, userDetail: userObj };
+    });
+  res.json({ status: "success", data: boardActivities });
+});
+
+// --------------------------------------------------------------------------
 // 7. Seed Reset API
 // --------------------------------------------------------------------------
 app.post("/api/seed/reset", (req, res) => {
