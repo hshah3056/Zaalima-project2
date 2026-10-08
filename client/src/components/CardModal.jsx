@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, 
   CheckSquare, 
@@ -8,11 +8,11 @@ import {
   Tag, 
   Send, 
   Plus, 
-  Trash2,
+  Trash2, 
   AlertCircle
 } from 'lucide-react';
 
-export default function CardModal({ isOpen, onClose, card, users, onUpdateCard, currentUser }) {
+export default function CardModal({ isOpen, onClose, card, users, onUpdateCard, currentUser, socket }) {
   if (!isOpen || !card) return null;
 
   const [title, setTitle] = useState(card.title || '');
@@ -23,10 +23,74 @@ export default function CardModal({ isOpen, onClose, card, users, onUpdateCard, 
   const [newCommentText, setNewCommentText] = useState('');
   const [comments, setComments] = useState(card.comments || []);
 
+  // Real-time typing state
+  const [typingUsers, setTypingUsers] = useState([]);
+  const typingTimeoutRef = useRef(null);
+
+  // Synchronize internal state whenever active card changes
+  useEffect(() => {
+    setTitle(card.title || '');
+    setDescription(card.description || '');
+    setPriority(card.priority || 'medium');
+    setSubtasks(card.subtasks || []);
+    setComments(card.comments || []);
+  }, [card]);
+
+  // Card-Level Room Scoping & Real-Time Listeners
+  useEffect(() => {
+    if (!socket || !isOpen || !card?._id) return;
+
+    // Join Card Modal Room
+    socket.emit('join_card', {
+      cardId: card._id,
+      userId: currentUser?._id,
+      userName: currentUser?.name || 'Teammate',
+    });
+
+    // Remote comment arrival
+    const handleRemoteComment = ({ cardId, comment }) => {
+      if (cardId === card._id) {
+        setComments((prev) => {
+          if (prev.some((c) => c.id === comment.id)) return prev;
+          return [...prev, comment];
+        });
+      }
+    };
+
+    // Remote typing indicator handlers
+    const handleRemoteTyping = ({ cardId, userId, userName }) => {
+      if (cardId === card._id && userId !== currentUser?._id) {
+        setTypingUsers((prev) => {
+          if (prev.some((u) => u.userId === userId)) return prev;
+          return [...prev, { userId, userName }];
+        });
+      }
+    };
+
+    const handleRemoteStoppedTyping = ({ cardId, userId }) => {
+      if (cardId === card._id) {
+        setTypingUsers((prev) => prev.filter((u) => u.userId !== userId));
+      }
+    };
+
+    socket.on('comment_added', handleRemoteComment);
+    socket.on('user_typing', handleRemoteTyping);
+    socket.on('user_stopped_typing', handleRemoteStoppedTyping);
+
+    return () => {
+      socket.emit('leave_card', { cardId: card._id });
+      socket.off('comment_added', handleRemoteComment);
+      socket.off('user_typing', handleRemoteTyping);
+      socket.off('user_stopped_typing', handleRemoteStoppedTyping);
+      setTypingUsers([]);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    };
+  }, [socket, isOpen, card?._id, currentUser]);
+
   const handleToggleSubtask = (subtaskId) => {
     const updated = subtasks.map(s => s.id === subtaskId ? { ...s, completed: !s.completed } : s);
     setSubtasks(updated);
-    onUpdateCard(card._id, { subtasks: updated });
+    if (onUpdateCard) onUpdateCard(card._id, { subtasks: updated });
   };
 
   const handleAddSubtask = (e) => {
@@ -36,26 +100,79 @@ export default function CardModal({ isOpen, onClose, card, users, onUpdateCard, 
     const updated = [...subtasks, newSt];
     setSubtasks(updated);
     setNewSubtaskTitle('');
-    onUpdateCard(card._id, { subtasks: updated });
+    if (onUpdateCard) onUpdateCard(card._id, { subtasks: updated });
   };
 
-  const handleAddComment = (e) => {
+  const handleCommentInputChange = (e) => {
+    const val = e.target.value;
+    setNewCommentText(val);
+
+    if (!socket || !card?._id) return;
+
+    if (val.trim()) {
+      socket.emit('typing_start', {
+        cardId: card._id,
+        userId: currentUser?._id,
+        userName: currentUser?.name || 'Teammate',
+      });
+
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        socket.emit('typing_stop', {
+          cardId: card._id,
+          userId: currentUser?._id,
+        });
+      }, 2000);
+    } else {
+      socket.emit('typing_stop', {
+        cardId: card._id,
+        userId: currentUser?._id,
+      });
+    }
+  };
+
+  const handleAddComment = async (e) => {
     e.preventDefault();
     if (!newCommentText.trim()) return;
-    const newCmt = {
-      id: `cmt_${Date.now()}`,
-      user: currentUser?._id || users[0]?._id || 'usr_001',
+
+    const payload = {
+      userId: currentUser?._id || users[0]?._id || 'usr_001',
       content: newCommentText.trim(),
-      createdAt: new Date().toISOString()
     };
-    const updated = [...comments, newCmt];
-    setComments(updated);
+
     setNewCommentText('');
-    onUpdateCard(card._id, { comments: updated });
+
+    if (socket && card?._id) {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      socket.emit('typing_stop', { cardId: card._id, userId: currentUser?._id });
+    }
+
+    try {
+      const res = await fetch(`http://localhost:5001/api/cards/${card._id}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data.status === 'success' && data.data) {
+        const updatedList = [...comments, data.data];
+        setComments(updatedList);
+        if (onUpdateCard) {
+          onUpdateCard(card._id, { comments: updatedList });
+        }
+        if (socket) {
+          socket.emit('post_comment', { cardId: card._id, comment: data.data });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to post comment:', err);
+    }
   };
 
   const handleSaveGeneral = () => {
-    onUpdateCard(card._id, { title, description, priority });
+    if (onUpdateCard) {
+      onUpdateCard(card._id, { title, description, priority });
+    }
   };
 
   const completedCount = subtasks.filter(s => s.completed).length;
@@ -110,7 +227,7 @@ export default function CardModal({ isOpen, onClose, card, users, onUpdateCard, 
 
         {/* Modal Body */}
         <div style={{ padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.5rem', background: '#FFFFFF' }}>
-          {/* Card Title Input */}
+          {/* Card Title */}
           <div>
             <label style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#64748B', fontWeight: 800, display: 'block', marginBottom: '0.4rem' }}>
               Card Title
@@ -144,7 +261,7 @@ export default function CardModal({ isOpen, onClose, card, users, onUpdateCard, 
                 value={priority}
                 onChange={(e) => {
                   setPriority(e.target.value);
-                  onUpdateCard(card._id, { priority: e.target.value });
+                  if (onUpdateCard) onUpdateCard(card._id, { priority: e.target.value });
                 }}
                 style={{
                   width: '100%',
@@ -160,8 +277,8 @@ export default function CardModal({ isOpen, onClose, card, users, onUpdateCard, 
               >
                 <option value="urgent">🔴 Urgent</option>
                 <option value="high">🟠 High</option>
-                <option value="medium">🔵 Medium</option>
-                <option value="low">⚪ Low</option>
+                <option value="medium">🟡 Medium</option>
+                <option value="low">🟢 Low</option>
               </select>
             </div>
 
@@ -205,7 +322,7 @@ export default function CardModal({ isOpen, onClose, card, users, onUpdateCard, 
             />
           </div>
 
-          {/* Subtasks Checklist */}
+          {/* Subtasks */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
               <label style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#64748B', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -216,7 +333,6 @@ export default function CardModal({ isOpen, onClose, card, users, onUpdateCard, 
               </span>
             </div>
 
-            {/* Progress Bar */}
             <div style={{ height: '6px', background: '#E2E8F0', borderRadius: '3px', marginBottom: '0.75rem', overflow: 'hidden' }}>
               <div style={{ height: '100%', width: `${subtaskProgress}%`, background: '#059669', transition: 'width 0.3s' }} />
             </div>
@@ -298,11 +414,34 @@ export default function CardModal({ isOpen, onClose, card, users, onUpdateCard, 
               })}
             </div>
 
+            {/* Real-time Typing Badge */}
+            {typingUsers.length > 0 && (
+              <div style={{
+                fontSize: '0.75rem',
+                color: '#4F46E5',
+                fontStyle: 'italic',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                marginBottom: '0.5rem'
+              }}>
+                <span style={{
+                  display: 'inline-block',
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  backgroundColor: '#4F46E5',
+                  boxShadow: '0 0 0 2px rgba(79, 70, 229, 0.2)'
+                }} />
+                {typingUsers.map(u => u.userName).join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...
+              </div>
+            )}
+
             <form onSubmit={handleAddComment} style={{ display: 'flex', gap: '0.5rem' }}>
               <input
                 type="text"
                 value={newCommentText}
-                onChange={(e) => setNewCommentText(e.target.value)}
+                onChange={handleCommentInputChange}
                 placeholder="Write a comment..."
                 style={{
                   flex: 1,
@@ -340,4 +479,3 @@ export default function CardModal({ isOpen, onClose, card, users, onUpdateCard, 
     </div>
   );
 }
-

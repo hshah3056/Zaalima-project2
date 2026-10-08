@@ -136,11 +136,15 @@ export default function App() {
     };
 
     const handleUserLeft = (data) => {
-      setActiveBoardPeers((prev) => prev.filter((p) => p.socketId !== data.socketId));
+      setActiveBoardPeers((prev) =>
+        prev.filter((p) => p.socketId !== data.socketId),
+      );
     };
 
     const handleUserDisconnected = (data) => {
-      setActiveBoardPeers((prev) => prev.filter((p) => p.socketId !== data.socketId));
+      setActiveBoardPeers((prev) =>
+        prev.filter((p) => p.socketId !== data.socketId),
+      );
     };
 
     const handleBoardPeers = (data) => {
@@ -252,7 +256,6 @@ export default function App() {
         }
       })
       .catch(() => {
-        // Fallback to local memory mock state
         const board = mockBoards.find((b) => b._id === bId);
         if (!board) return;
         const lists = mockLists
@@ -337,34 +340,48 @@ export default function App() {
     }
   };
 
-  const handleMoveCard = (cardId, sourceListId, targetListId, sourceIndex, targetIndex) => {
+  const handleMoveCard = (
+    cardId,
+    sourceListId,
+    targetListId,
+    sourceIndex,
+    targetIndex,
+  ) => {
     if (!boardDetails || !boardDetails.lists) return;
 
-    // Snapshot state for instant rollback if API fails
     const previousBoardDetails = JSON.parse(JSON.stringify(boardDetails));
 
-    // Optimistic 0ms UI update
-    const newLists = boardDetails.lists.map(l => ({
+    const newLists = boardDetails.lists.map((l) => ({
       ...l,
-      cards: [...(l.cards || [])]
+      cards: [...(l.cards || [])],
     }));
 
-    const sourceList = newLists.find(l => l._id === (sourceListId || targetListId));
-    const targetList = newLists.find(l => l._id === targetListId);
+    const sourceList = newLists.find(
+      (l) => l._id === (sourceListId || targetListId),
+    );
+    const targetList = newLists.find((l) => l._id === targetListId);
 
     if (sourceList && targetList) {
       if (sourceList._id === targetList._id) {
-        const cardIdx = sourceList.cards.findIndex(c => c._id === cardId);
+        const cardIdx = sourceList.cards.findIndex((c) => c._id === cardId);
         if (cardIdx !== -1) {
           const [movedCard] = sourceList.cards.splice(cardIdx, 1);
-          sourceList.cards.splice(targetIndex !== undefined ? targetIndex : 0, 0, movedCard);
+          sourceList.cards.splice(
+            targetIndex !== undefined ? targetIndex : 0,
+            0,
+            movedCard,
+          );
         }
       } else {
-        const cardIdx = sourceList.cards.findIndex(c => c._id === cardId);
+        const cardIdx = sourceList.cards.findIndex((c) => c._id === cardId);
         if (cardIdx !== -1) {
           const [movedCard] = sourceList.cards.splice(cardIdx, 1);
           movedCard.list = targetListId;
-          targetList.cards.splice(targetIndex !== undefined ? targetIndex : targetList.cards.length, 0, movedCard);
+          targetList.cards.splice(
+            targetIndex !== undefined ? targetIndex : targetList.cards.length,
+            0,
+            movedCard,
+          );
         }
       }
       setBoardDetails({ ...boardDetails, lists: newLists });
@@ -383,7 +400,10 @@ export default function App() {
     fetch(`${API_BASE}/cards/${cardId}/move`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ targetListId, position: targetIndex !== undefined ? targetIndex : 0 }),
+      body: JSON.stringify({
+        targetListId,
+        position: targetIndex !== undefined ? targetIndex : 0,
+      }),
     })
       .then((res) => {
         if (!res.ok) throw new Error("Server move failed");
@@ -407,7 +427,7 @@ export default function App() {
 
     setBoardDetails({ ...boardDetails, lists: reorderedLists });
 
-    const orderedListIds = reorderedLists.map(l => l._id);
+    const orderedListIds = reorderedLists.map((l) => l._id);
     emitListReordered({
       boardId: currentBoardId,
       orderedListIds,
@@ -453,7 +473,6 @@ export default function App() {
       comments: [],
     };
 
-    // Optimistic local update
     const updatedLists = (boardDetails.lists || []).map((l) => {
       if (l._id === cardData.listId) {
         return { ...l, cards: [...l.cards, newCrd] };
@@ -496,11 +515,10 @@ export default function App() {
     if (!boardDetails) return;
     const previousBoardDetails = JSON.parse(JSON.stringify(boardDetails));
 
-    // Optimistic update
     const updatedLists = boardDetails.lists.map((l) => ({
       ...l,
       cards: l.cards.map((c) =>
-        c._id === cardId ? { ...c, ...updatePayload } : c
+        c._id === cardId ? { ...c, ...updatePayload } : c,
       ),
     }));
     setBoardDetails({ ...boardDetails, lists: updatedLists });
@@ -532,13 +550,13 @@ export default function App() {
 
   const handleCreateBoard = (boardPayload) => {
     fetch(`${API_BASE}/boards`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(boardPayload)
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(boardPayload),
     })
-      .then(res => res.json())
-      .then(res => {
-        if (res.status === 'success' && res.data) {
+      .then((res) => res.json())
+      .then((res) => {
+        if (res.status === "success" && res.data) {
           const newBrd = res.data;
           setCurrentBoardId(newBrd._id);
           fetchWorkspaceData(currentWorkspaceId);
@@ -546,22 +564,85 @@ export default function App() {
         }
       })
       .catch(() => {
-        // Fallback local creation
         const newBoardId = `brd_${Date.now()}`;
-        const isScrum = boardPayload.type === 'SCRUM';
+        const isScrum = boardPayload.type === "SCRUM";
 
         const templateLists = isScrum
           ? [
-              { _id: `lst_${Date.now()}_1`, board: newBoardId, title: 'Sprint Backlog', position: 0, wipLimit: 0, color: '#64748B', cards: [] },
-              { _id: `lst_${Date.now()}_2`, board: newBoardId, title: 'Active Sprint', position: 1, wipLimit: 5, color: '#3B82F6', cards: [] },
-              { _id: `lst_${Date.now()}_3`, board: newBoardId, title: 'Testing / QA', position: 2, wipLimit: 3, color: '#F59E0B', cards: [] },
-              { _id: `lst_${Date.now()}_4`, board: newBoardId, title: 'Sprint Completed', position: 3, wipLimit: 0, color: '#10B981', cards: [] }
+              {
+                _id: `lst_${Date.now()}_1`,
+                board: newBoardId,
+                title: "Sprint Backlog",
+                position: 0,
+                wipLimit: 0,
+                color: "#64748B",
+                cards: [],
+              },
+              {
+                _id: `lst_${Date.now()}_2`,
+                board: newBoardId,
+                title: "Active Sprint",
+                position: 1,
+                wipLimit: 5,
+                color: "#3B82F6",
+                cards: [],
+              },
+              {
+                _id: `lst_${Date.now()}_3`,
+                board: newBoardId,
+                title: "Testing / QA",
+                position: 2,
+                wipLimit: 3,
+                color: "#F59E0B",
+                cards: [],
+              },
+              {
+                _id: `lst_${Date.now()}_4`,
+                board: newBoardId,
+                title: "Sprint Completed",
+                position: 3,
+                wipLimit: 0,
+                color: "#10B981",
+                cards: [],
+              },
             ]
           : [
-              { _id: `lst_${Date.now()}_1`, board: newBoardId, title: 'Backlog', position: 0, wipLimit: 20, color: '#64748B', cards: [] },
-              { _id: `lst_${Date.now()}_2`, board: newBoardId, title: 'In Progress', position: 1, wipLimit: 5, color: '#3B82F6', cards: [] },
-              { _id: `lst_${Date.now()}_3`, board: newBoardId, title: 'In Review', position: 2, wipLimit: 3, color: '#8B5CF6', cards: [] },
-              { _id: `lst_${Date.now()}_4`, board: newBoardId, title: 'Done', position: 3, wipLimit: 0, color: '#10B981', cards: [] }
+              {
+                _id: `lst_${Date.now()}_1`,
+                board: newBoardId,
+                title: "Backlog",
+                position: 0,
+                wipLimit: 20,
+                color: "#64748B",
+                cards: [],
+              },
+              {
+                _id: `lst_${Date.now()}_2`,
+                board: newBoardId,
+                title: "In Progress",
+                position: 1,
+                wipLimit: 5,
+                color: "#3B82F6",
+                cards: [],
+              },
+              {
+                _id: `lst_${Date.now()}_3`,
+                board: newBoardId,
+                title: "In Review",
+                position: 2,
+                wipLimit: 3,
+                color: "#8B5CF6",
+                cards: [],
+              },
+              {
+                _id: `lst_${Date.now()}_4`,
+                board: newBoardId,
+                title: "Done",
+                position: 3,
+                wipLimit: 0,
+                color: "#10B981",
+                cards: [],
+              },
             ];
 
         const newBoardObj = {
@@ -573,28 +654,30 @@ export default function App() {
           accessTier: boardPayload.accessTier,
           leadId: boardPayload.leadId,
           description: boardPayload.description,
-          icon: isScrum ? 'Sparkles' : 'Kanban',
+          icon: isScrum ? "Sparkles" : "Kanban",
           lists: templateLists,
-          members: users
+          members: users,
         };
 
-        setWorkspaces(workspaces.map(ws => {
-          if (ws._id === currentWorkspaceId) {
-            return {
-              ...ws,
-              boards: [...(ws.boards || []), newBoardId]
-            };
-          }
-          return ws;
-        }));
+        setWorkspaces(
+          workspaces.map((ws) => {
+            if (ws._id === currentWorkspaceId) {
+              return {
+                ...ws,
+                boards: [...(ws.boards || []), newBoardId],
+              };
+            }
+            return ws;
+          }),
+        );
 
         setBoardDetails(newBoardObj);
         setCurrentBoardId(newBoardId);
-        setActiveView('kanban');
+        setActiveView("kanban");
         showToast("Board created locally", "success");
       });
   };
-  
+
   const handleAddListColumn = () => {
     const listTitle = prompt(
       "Enter New Column / List Title (e.g., Code Review):",
@@ -613,7 +696,6 @@ export default function App() {
       cards: [],
     };
 
-    // Optimistic local add
     setBoardDetails({
       ...boardDetails,
       lists: [...(boardDetails?.lists || []), newListObj],
@@ -639,7 +721,10 @@ export default function App() {
       .catch((err) => {
         console.warn("Optimistic list creation failed, rolling back:", err);
         setBoardDetails(previousBoardDetails);
-        showToast("Server error: Could not create list column. Reverted.", "error");
+        showToast(
+          "Server error: Could not create list column. Reverted.",
+          "error",
+        );
       });
   };
 
@@ -647,9 +732,8 @@ export default function App() {
     if (!boardDetails) return;
     const previousBoardDetails = JSON.parse(JSON.stringify(boardDetails));
 
-    // Optimistic local update
     const updatedLists = boardDetails.lists.map((l) =>
-      l._id === listId ? { ...l, ...listData } : l
+      l._id === listId ? { ...l, ...listData } : l,
     );
     setBoardDetails({ ...boardDetails, lists: updatedLists });
     showToast("Column updated", "success");
@@ -679,11 +763,15 @@ export default function App() {
   };
 
   const handleDeleteList = (listId) => {
-    if (!window.confirm("Are you sure you want to delete this column and all its cards?")) return;
+    if (
+      !window.confirm(
+        "Are you sure you want to delete this column and all its cards?",
+      )
+    )
+      return;
     if (!boardDetails) return;
     const previousBoardDetails = JSON.parse(JSON.stringify(boardDetails));
 
-    // Optimistic local delete
     const updatedLists = boardDetails.lists.filter((l) => l._id !== listId);
     setBoardDetails({ ...boardDetails, lists: updatedLists });
     showToast("Column deleted", "info");
@@ -723,7 +811,6 @@ export default function App() {
     if (!boardDetails) return;
     const previousBoardDetails = JSON.parse(JSON.stringify(boardDetails));
 
-    // Optimistic local delete
     const updatedLists = boardDetails.lists.map((l) => ({
       ...l,
       cards: l.cards.filter((c) => c._id !== cardId),
@@ -796,12 +883,10 @@ export default function App() {
     ? [boardDetails]
     : mockBoards.filter((b) => b.workspace === currentWorkspaceId);
 
-  // All cards collection for UserPanel calculation
   const allCards = boardDetails?.lists
     ? boardDetails.lists.flatMap((l) => l.cards || [])
     : mockCards;
 
-  // Active card finding for modal
   let activeCard = null;
   if (activeCardId && boardDetails?.lists) {
     for (const l of boardDetails.lists) {
@@ -881,7 +966,7 @@ export default function App() {
           onSelectView={(view) => setActiveView(view)}
         />
 
-        {/* View Switcher: Settings vs User Panel vs Team View vs Kanban Board */}
+        {/* View Switcher */}
         {activeView === "settings" ? (
           <WorkspaceSettings
             workspace={currentWorkspace}
@@ -967,7 +1052,7 @@ export default function App() {
         schemaData={schemaData}
       />
 
-      {/* Card Details Modal */}
+      {/* Card Details Modal (Wired with Socket instance) */}
       <CardModal
         isOpen={Boolean(activeCardId)}
         onClose={() => setActiveCardId(null)}
@@ -975,6 +1060,7 @@ export default function App() {
         users={users}
         currentUser={currentUser}
         onUpdateCard={handleUpdateCard}
+        socket={socket}
       />
 
       {/* Creation Modals */}

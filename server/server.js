@@ -17,17 +17,17 @@ const PORT = process.env.PORT || 5001;
 const server = http.createServer(app);
 
 const ALLOWED_ORIGINS = [
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-  'http://localhost:5173',
-  'http://127.0.0.1:5173'
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
 ];
 
 // 2. Attach Socket.io with updated CORS Configuration
 const io = new Server(server, {
   cors: {
     origin: ALLOWED_ORIGINS,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     credentials: true,
   },
   pingTimeout: 60000,
@@ -38,6 +38,9 @@ app.use(cors({
   origin: ALLOWED_ORIGINS,
   credentials: true,
 }));
+
+// ADD THIS LINE: Parse JSON request bodies
+app.use(express.json());
 
 // In-memory data store for initial demonstration & API execution
 let store = {
@@ -50,7 +53,7 @@ let store = {
 };
 
 // --------------------------------------------------------------------------
-// Milestone 3 (Day 1-2 & Day 3-5): Socket.io Real-Time Connection & Event Engine
+// Milestone 3: Socket.io Real-Time Connection & Event Engine
 // --------------------------------------------------------------------------
 const activeConnections = new Map(); // socketId -> { userId, userName, boardId, connectedAt, lastPing }
 
@@ -139,13 +142,14 @@ io.on("connection", (socket) => {
   });
 
   // ------------------------------------------------------------------------
-  // Day 3-5: Real-Time Event Handlers (Broadcasting to Board Room)
+  // Day 3-5: Board Room Real-Time Broadcasting
   // ------------------------------------------------------------------------
-
-  // 1. Broadcast Card Movement
   socket.on("card_moved", (data) => {
     if (!data.boardId) return;
-    console.log(`🔄 [Socket Event] card_moved on board ${data.boardId}:`, data.cardId);
+    console.log(
+      `🔄 [Socket Event] card_moved on board ${data.boardId}:`,
+      data.cardId,
+    );
     socket.to(data.boardId).emit("card_moved", {
       ...data,
       socketId: socket.id,
@@ -153,10 +157,12 @@ io.on("connection", (socket) => {
     });
   });
 
-  // 2. Broadcast Card Creation
   socket.on("card_created", (data) => {
     if (!data.boardId) return;
-    console.log(`➕ [Socket Event] card_created on board ${data.boardId}:`, data.card?._id || data.card?.title);
+    console.log(
+      `➕ [Socket Event] card_created on board ${data.boardId}:`,
+      data.card?._id || data.card?.title,
+    );
     socket.to(data.boardId).emit("card_created", {
       ...data,
       socketId: socket.id,
@@ -164,10 +170,12 @@ io.on("connection", (socket) => {
     });
   });
 
-  // 3. Broadcast Card Update
   socket.on("card_updated", (data) => {
     if (!data.boardId) return;
-    console.log(`✏️ [Socket Event] card_updated on board ${data.boardId}:`, data.cardId || data.card?._id);
+    console.log(
+      `✏️ [Socket Event] card_updated on board ${data.boardId}:`,
+      data.cardId || data.card?._id,
+    );
     socket.to(data.boardId).emit("card_updated", {
       ...data,
       socketId: socket.id,
@@ -175,10 +183,12 @@ io.on("connection", (socket) => {
     });
   });
 
-  // 4. Broadcast Card Deletion
   socket.on("card_deleted", (data) => {
     if (!data.boardId) return;
-    console.log(`🗑️ [Socket Event] card_deleted on board ${data.boardId}:`, data.cardId);
+    console.log(
+      `🗑️ [Socket Event] card_deleted on board ${data.boardId}:`,
+      data.cardId,
+    );
     socket.to(data.boardId).emit("card_deleted", {
       ...data,
       socketId: socket.id,
@@ -186,7 +196,6 @@ io.on("connection", (socket) => {
     });
   });
 
-  // 5. Broadcast List Creation
   socket.on("list_created", (data) => {
     if (!data.boardId) return;
     socket.to(data.boardId).emit("list_created", {
@@ -196,7 +205,6 @@ io.on("connection", (socket) => {
     });
   });
 
-  // 6. Broadcast List Update
   socket.on("list_updated", (data) => {
     if (!data.boardId) return;
     socket.to(data.boardId).emit("list_updated", {
@@ -206,7 +214,6 @@ io.on("connection", (socket) => {
     });
   });
 
-  // 7. Broadcast List Reorder
   socket.on("list_reordered", (data) => {
     if (!data.boardId) return;
     socket.to(data.boardId).emit("list_reordered", {
@@ -216,13 +223,59 @@ io.on("connection", (socket) => {
     });
   });
 
-  // 8. Broadcast List Deletion
   socket.on("list_deleted", (data) => {
     if (!data.boardId) return;
     socket.to(data.boardId).emit("list_deleted", {
       ...data,
       socketId: socket.id,
       timestamp: new Date().toISOString(),
+    });
+  });
+
+  // ------------------------------------------------------------------------
+  // Day 6–7: Card Rooms, Typing Indicators & Comment Threads
+  // ------------------------------------------------------------------------
+  socket.on("join_card", ({ cardId, userId, userName }) => {
+    if (!cardId) return;
+    const roomName = `card_${cardId}`;
+    socket.join(roomName);
+    console.log(
+      `💬 [Card Room] Socket ${socket.id} (${userName || userId}) joined ${roomName}`,
+    );
+  });
+
+  socket.on("leave_card", ({ cardId }) => {
+    if (!cardId) return;
+    const roomName = `card_${cardId}`;
+    socket.leave(roomName);
+    console.log(`🚪 [Card Room] Socket ${socket.id} left ${roomName}`);
+  });
+
+  socket.on("typing_start", ({ cardId, userId, userName }) => {
+    if (!cardId) return;
+    socket.to(`card_${cardId}`).emit("user_typing", {
+      cardId,
+      userId,
+      userName: userName || "A teammate",
+    });
+  });
+
+  socket.on("typing_stop", ({ cardId, userId }) => {
+    if (!cardId) return;
+    socket.to(`card_${cardId}`).emit("user_stopped_typing", {
+      cardId,
+      userId,
+    });
+  });
+
+  socket.on("post_comment", ({ cardId, comment }) => {
+    if (!cardId || !comment) return;
+    console.log(
+      `✉️ [Card Comment] Live comment in card_${cardId} by ${comment.user}`,
+    );
+    socket.to(`card_${cardId}`).emit("comment_added", {
+      cardId,
+      comment,
     });
   });
 
@@ -263,7 +316,7 @@ io.on("connection", (socket) => {
 app.set("io", io);
 
 // --------------------------------------------------------------------------
-// 1. Schema Inspector API Endpoint for Day 1-2 Review
+// 1. Schema Inspector API Endpoint
 // --------------------------------------------------------------------------
 app.get("/api/data-models", (req, res) => {
   res.json({
@@ -324,7 +377,6 @@ app.post("/api/users", (req, res) => {
 
   store.users.push(newUser);
 
-  // Auto-add new user to all default workspaces
   store.workspaces.forEach((ws) => {
     if (!ws.members.some((m) => m.user === newUser._id)) {
       ws.members.push({
@@ -727,7 +779,6 @@ app.post("/api/lists", (req, res) => {
   store.lists.push(newList);
   board.lists.push(newList._id);
 
-  // Broadcast list creation to board room
   io.to(boardId).emit("list_created", { boardId, list: newList });
 
   res.status(201).json({ status: "success", data: newList });
@@ -756,8 +807,11 @@ app.put("/api/lists/reorder", (req, res) => {
     .filter((l) => l.board === boardId)
     .sort((a, b) => a.position - b.position);
 
-  // Broadcast list reorder to board room
-  io.to(boardId).emit("list_reordered", { boardId, orderedListIds, lists: updatedBoardLists });
+  io.to(boardId).emit("list_reordered", {
+    boardId,
+    orderedListIds,
+    lists: updatedBoardLists,
+  });
 
   res.json({ status: "success", data: updatedBoardLists });
 });
@@ -781,9 +835,11 @@ const handleUpdateList = (req, res) => {
 
   store.lists[listIndex] = updatedList;
 
-  // Broadcast list update to board room
   if (updatedList.board) {
-    io.to(updatedList.board).emit("list_updated", { boardId: updatedList.board, list: updatedList });
+    io.to(updatedList.board).emit("list_updated", {
+      boardId: updatedList.board,
+      list: updatedList,
+    });
   }
 
   res.json({ status: "success", data: updatedList });
@@ -809,9 +865,11 @@ app.delete("/api/lists/:id", (req, res) => {
 
   store.cards = store.cards.filter((c) => c.list !== deletedList._id);
 
-  // Broadcast list deletion to board room
   if (deletedList.board) {
-    io.to(deletedList.board).emit("list_deleted", { boardId: deletedList.board, listId: deletedList._id });
+    io.to(deletedList.board).emit("list_deleted", {
+      boardId: deletedList.board,
+      listId: deletedList._id,
+    });
   }
 
   res.json({
@@ -957,7 +1015,6 @@ app.post("/api/cards", (req, res) => {
     createdAt: new Date().toISOString(),
   });
 
-  // Broadcast card creation to board room
   io.to(boardId).emit("card_created", { boardId, listId, card: newCard });
 
   res.status(201).json({ status: "success", data: newCard });
@@ -1026,7 +1083,6 @@ const handleUpdateCard = (req, res) => {
     });
   }
 
-  // Broadcast card update to board room
   if (updatedCard.board) {
     io.to(updatedCard.board).emit("card_updated", {
       boardId: updatedCard.board,
@@ -1068,7 +1124,6 @@ app.delete("/api/cards/:id", (req, res) => {
     createdAt: new Date().toISOString(),
   });
 
-  // Broadcast card deletion to board room
   if (deletedCard.board) {
     io.to(deletedCard.board).emit("card_deleted", {
       boardId: deletedCard.board,
@@ -1107,7 +1162,6 @@ const handleMoveCardRoute = (req, res) => {
 
   card.updatedAt = new Date().toISOString();
 
-  // Broadcast card movement to board room
   if (card.board) {
     io.to(card.board).emit("card_moved", {
       boardId: card.board,
@@ -1207,6 +1261,21 @@ app.post("/api/cards/:id/comments", (req, res) => {
   card.comments.push(newComment);
   card.updatedAt = new Date().toISOString();
 
+  // Day 6-7: Broadcast new comment to the card-scoped room
+  io.to(`card_${card._id}`).emit("comment_added", {
+    cardId: card._id,
+    comment: newComment,
+  });
+
+  // Also broadcast full card update to the board room
+  if (card.board) {
+    io.to(card.board).emit("card_updated", {
+      boardId: card.board,
+      cardId: card._id,
+      card,
+    });
+  }
+
   res.status(201).json({ status: "success", data: newComment, card });
 });
 
@@ -1220,7 +1289,7 @@ app.delete("/api/cards/:id/comments/:commentId", (req, res) => {
   );
   card.updatedAt = new Date().toISOString();
 
-  // Broadcast card update for subtasks/comments
+  // Broadcast deletion to board and card room
   if (card.board) {
     io.to(card.board).emit("card_updated", {
       boardId: card.board,
