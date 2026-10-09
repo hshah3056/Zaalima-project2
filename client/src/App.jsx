@@ -51,6 +51,8 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const showToast = (message, type = "info") => setToast({ message, type });
 
+  const [isSocketConnected, setIsSocketConnected] = useState(socket.connected);
+
   // User Authentication State
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem("pulse_current_user");
@@ -114,6 +116,22 @@ export default function App() {
       fetchBoardDetails(currentBoardId);
     }
   }, [currentBoardId]);
+
+  // Track real-time socket connection status
+  useEffect(() => {
+    const handleConnect = () => setIsSocketConnected(true);
+    const handleDisconnect = () => setIsSocketConnected(false);
+
+    socket.on("connect", handleConnect);
+    socket.on("disconnect", handleDisconnect);
+
+    setIsSocketConnected(socket.connected);
+
+    return () => {
+      socket.off("connect", handleConnect);
+      socket.off("disconnect", handleDisconnect);
+    };
+  }, []);
 
   // Real-Time Socket.io Connection & Event Engine Subscriptions
   useEffect(() => {
@@ -942,6 +960,7 @@ export default function App() {
         onLogoutUser={handleLogoutUser}
         onOpenInviteModal={() => setIsInviteModalOpen(true)}
         activeBoardPeers={activeBoardPeers}
+        isSocketConnected={isSocketConnected}
       />
 
       {/* Main Workspace Layout */}
