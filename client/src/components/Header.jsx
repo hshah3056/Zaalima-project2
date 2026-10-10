@@ -14,6 +14,8 @@ import {
   ChevronDown,
   LogOut,
   UserPlus,
+  Bell,
+  CheckCheck,
 } from "lucide-react";
 
 export default function Header({
@@ -33,8 +35,11 @@ export default function Header({
   onOpenInviteModal,
   activeBoardPeers = [],
   isSocketConnected = true,
+  notifications = [],
+  onClearNotifications = () => {},
 }) {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
   return (
     <header
@@ -253,16 +258,16 @@ export default function Header({
         </button>
       </div>
 
-      {/* Right Side User Login & Actions */}
+      {/* Right Side Controls & Profile */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          gap: "0.85rem",
+          gap: "0.75rem",
           position: "relative",
         }}
       >
-        {/* Live Socket Status Pill (Always visible in Header) */}
+        {/* Live Socket Status Badge */}
         <div
           title={
             isSocketConnected
@@ -298,7 +303,167 @@ export default function Header({
           <span>{isSocketConnected ? "Live" : "Offline"}</span>
         </div>
 
-        {/* Active Logged In User Pill with Dropdown */}
+        {/* In-App Notification Center */}
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => {
+              setIsNotificationsOpen(!isNotificationsOpen);
+              setIsProfileMenuOpen(false);
+            }}
+            title="Notifications"
+            style={{
+              position: "relative",
+              background: isNotificationsOpen ? "#EEF2FF" : "#F8FAFC",
+              border: isNotificationsOpen ? "1px solid #4F46E5" : "1px solid #CBD5E1",
+              color: isNotificationsOpen ? "#4F46E5" : "#64748B",
+              padding: "0.45rem",
+              borderRadius: "8px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Bell size={16} />
+            {notifications.length > 0 && (
+              <span
+                style={{
+                  position: "absolute",
+                  top: "-4px",
+                  right: "-4px",
+                  background: "#EF4444",
+                  color: "#FFFFFF",
+                  fontSize: "0.62rem",
+                  fontWeight: 800,
+                  width: "16px",
+                  height: "16px",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  border: "2px solid #FFFFFF",
+                }}
+              >
+                {notifications.length > 9 ? "9+" : notifications.length}
+              </span>
+            )}
+          </button>
+
+          {/* Notifications Dropdown Drawer */}
+          {isNotificationsOpen && (
+            <div
+              className="glass-panel animate-modal"
+              style={{
+                position: "absolute",
+                right: 0,
+                top: "42px",
+                width: "320px",
+                background: "#FFFFFF",
+                border: "1px solid #E2E8F0",
+                borderRadius: "12px",
+                boxShadow: "var(--shadow-xl)",
+                padding: "0.75rem",
+                zIndex: 100,
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.5rem",
+                maxHeight: "380px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  paddingBottom: "0.5rem",
+                  borderBottom: "1px solid #F1F5F9",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <Bell size={14} color="#4F46E5" />
+                  <span style={{ fontSize: "0.85rem", fontWeight: 800, color: "#0F172A" }}>
+                    Notifications ({notifications.length})
+                  </span>
+                </div>
+                {notifications.length > 0 && (
+                  <button
+                    onClick={onClearNotifications}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "#4F46E5",
+                      fontSize: "0.72rem",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "3px",
+                    }}
+                  >
+                    <CheckCheck size={12} /> Clear all
+                  </button>
+                )}
+              </div>
+
+              <div
+                style={{
+                  overflowY: "auto",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.4rem",
+                  maxHeight: "280px",
+                }}
+              >
+                {notifications.length === 0 ? (
+                  <div
+                    style={{
+                      textAlign: "center",
+                      padding: "1.5rem 0",
+                      color: "#94A3B8",
+                      fontSize: "0.78rem",
+                    }}
+                  >
+                    No unread notifications
+                  </div>
+                ) : (
+                  notifications.map((notif) => (
+                    <div
+                      key={notif.id}
+                      style={{
+                        padding: "0.5rem",
+                        borderRadius: "8px",
+                        background: "#F8FAFC",
+                        border: "1px solid #E2E8F0",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "2px",
+                      }}
+                    >
+                      <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#0F172A" }}>
+                        {notif.title}
+                      </div>
+                      <div style={{ fontSize: "0.72rem", color: "#475569" }}>
+                        {notif.message}
+                      </div>
+                      <span
+                        style={{
+                          fontSize: "0.62rem",
+                          color: "#94A3B8",
+                          marginTop: "2px",
+                          fontFamily: "var(--font-mono)",
+                        }}
+                      >
+                        {notif.time}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* User Profile Pill */}
         <div style={{ position: "relative" }}>
           <div
             onClick={() => {
@@ -306,6 +471,7 @@ export default function Header({
                 onOpenLoginModal();
               } else {
                 setIsProfileMenuOpen(!isProfileMenuOpen);
+                setIsNotificationsOpen(false);
               }
             }}
             title={

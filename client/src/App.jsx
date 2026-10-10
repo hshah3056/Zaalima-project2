@@ -51,7 +51,23 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const showToast = (message, type = "info") => setToast({ message, type });
 
+  // Socket Connection Status State
   const [isSocketConnected, setIsSocketConnected] = useState(socket.connected);
+
+  // In-App Notification Center State (Week 4 Milestone)
+  const [notifications, setNotifications] = useState([]);
+
+  const addNotification = (title, message) => {
+    const newNotif = {
+      id: `ntf_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      title,
+      message,
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    };
+    setNotifications((prev) => [newNotif, ...prev.slice(0, 24)]);
+  };
+
+  const clearNotifications = () => setNotifications([]);
 
   // User Authentication State
   const [currentUser, setCurrentUser] = useState(() => {
@@ -174,24 +190,28 @@ export default function App() {
     const handleRealtimeCardMoved = (data) => {
       if (data.socketId === socket.id) return;
       showToast("Real-time: Card position synced", "info");
+      addNotification("Card Moved", `${data.user?.name || "A team member"} moved a card.`);
       fetchBoardDetails(currentBoardId);
     };
 
     const handleRealtimeCardCreated = (data) => {
       if (data.socketId === socket.id) return;
       showToast("Real-time: New card created by team member", "success");
+      addNotification("New Card Added", `${data.user?.name || "A team member"} created "${data.card?.title || 'a task'}".`);
       fetchBoardDetails(currentBoardId);
     };
 
     const handleRealtimeCardUpdated = (data) => {
       if (data.socketId === socket.id) return;
       showToast("Real-time: Card updated by team member", "info");
+      addNotification("Card Updated", `${data.user?.name || "A team member"} modified a task.`);
       fetchBoardDetails(currentBoardId);
     };
 
     const handleRealtimeCardDeleted = (data) => {
       if (data.socketId === socket.id) return;
       showToast("Real-time: Card deleted by team member", "info");
+      addNotification("Card Removed", `${data.user?.name || "A team member"} deleted a card.`);
       fetchBoardDetails(currentBoardId);
     };
 
@@ -961,6 +981,8 @@ export default function App() {
         onOpenInviteModal={() => setIsInviteModalOpen(true)}
         activeBoardPeers={activeBoardPeers}
         isSocketConnected={isSocketConnected}
+        notifications={notifications}
+        onClearNotifications={clearNotifications}
       />
 
       {/* Main Workspace Layout */}

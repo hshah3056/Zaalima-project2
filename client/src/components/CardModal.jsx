@@ -478,4 +478,4 @@ export default function CardModal({ isOpen, onClose, card, users, onUpdateCard, 
       </div>
     </div>
   );
-}
+} 
