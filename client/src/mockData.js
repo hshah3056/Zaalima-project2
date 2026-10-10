@@ -360,3 +360,42 @@ export const mockActivities = [
     createdAt: "2026-09-28T09:00:00Z"
   }
 ];
+
+export const mockNotifications = [
+  {
+    _id: "notif_001",
+    user: "usr_001",
+    actor: "usr_002",
+    type: "assigned_card",
+    title: "New Task Assignment",
+    message: "Sarah Chen assigned you to PULSE-102: Real-Time Synchronization Engine",
+    card: "crd_002",
+    board: "brd_001",
+    isRead: false,
+    createdAt: new Date(Date.now() - 1000 * 60 * 15).toISOString()
+  },
+  {
+    _id: "notif_002",
+    user: "usr_001",
+    actor: "usr_003",
+    type: "comment_added",
+    title: "New Comment",
+    message: "Marcus Vance commented on PULSE-101: Socket.io Integration",
+    card: "crd_001",
+    board: "brd_001",
+    isRead: false,
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString()
+  },
+  {
+    _id: "notif_003",
+    user: "usr_001",
+    actor: "usr_004",
+    type: "card_moved",
+    title: "Card Moved",
+    message: "Elena Rostova moved PULSE-103 to 'In Review'",
+    card: "crd_003",
+    board: "brd_001",
+    isRead: true,
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString()
+  }
+];

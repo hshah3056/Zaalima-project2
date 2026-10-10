@@ -47,6 +47,7 @@ let store = {
   lists: [...seed.mockLists],
   cards: [...seed.mockCards],
   activities: [...seed.mockActivities],
+  notifications: seed.mockNotifications ? [...seed.mockNotifications] : [],
 };
 
 // --------------------------------------------------------------------------
@@ -268,7 +269,7 @@ app.set("io", io);
 app.get("/api/data-models", (req, res) => {
   res.json({
     status: "success",
-    phase: "Day 1–2: Data Models Definition",
+    phase: "Day 1–2: Task Search Engine & In-App Notification System",
     stack: "MERN Stack (MongoDB, Express, React, Node.js)",
     models: {
       User: UserSchemaDefinition,
@@ -277,8 +278,293 @@ app.get("/api/data-models", (req, res) => {
       List: ListSchemaDefinition,
       Card: CardSchemaDefinition,
       Activity: ActivitySchemaDefinition,
+      Notification: {
+        _id: { type: "String", required: true, description: "Unique notification identifier" },
+        user: { type: "ObjectId (User)", required: true, description: "Target recipient user ID" },
+        actor: { type: "ObjectId (User)", required: true, description: "User ID who triggered the action" },
+        type: { type: "String", enum: ["assigned_card", "card_moved", "comment_added", "mentioned", "card_updated"], required: true },
+        title: { type: "String", required: true },
+        message: { type: "String", required: true },
+        card: { type: "ObjectId (Card)", required: false },
+        board: { type: "ObjectId (Board)", required: false },
+        isRead: { type: "Boolean", default: false },
+        createdAt: { type: "Date", default: "Date.now" },
+      },
     },
   });
+});
+
+// --------------------------------------------------------------------------
+// Notification Engine Helper Function
+// --------------------------------------------------------------------------
+function sendNotification({ userId, actorId, type, title, message, cardId, boardId }) {
+  if (!userId) return;
+  const newNotif = {
+    _id: `notif_${Date.now()}_${Math.floor(Math.random() * 900 + 100)}`,
+    user: userId,
+    actor: actorId || (store.users[0] ? store.users[0]._id : "usr_001"),
+    type: type || "info",
+    title: title || "Notification",
+    message: message || "",
+    card: cardId || null,
+    board: boardId || null,
+    isRead: false,
+    createdAt: new Date().toISOString(),
+  };
+
+  store.notifications.unshift(newNotif);
+
+  // Broadcast notification event to all connected clients
+  io.emit("notification_received", {
+    notification: {
+      ...newNotif,
+      actorDetail: store.users.find((u) => u._id === actorId),
+    },
+  });
+
+  return newNotif;
+}
+
+// --------------------------------------------------------------------------
+// Comprehensive Task Search Engine API Endpoint
+// --------------------------------------------------------------------------
+const handleSearchEngine = (req, res) => {
+  const {
+    q,
+    query,
+    workspaceId,
+    boardId,
+    listId,
+    priority,
+    status,
+    assignee,
+    reporter,
+    label,
+    dueDate,
+    hasSubtasks,
+    sortBy,
+    sortOrder,
+  } = req.query;
+
+  const searchTerm = (q || query || "").trim().toLowerCase();
+  let resultCards = [...store.cards];
+
+  if (workspaceId) {
+    resultCards = resultCards.filter((c) => c.workspace === workspaceId);
+  }
+  if (boardId) {
+    resultCards = resultCards.filter((c) => c.board === boardId);
+  }
+  if (listId) {
+    resultCards = resultCards.filter((c) => c.list === listId);
+  }
+  if (priority && priority !== "all") {
+    resultCards = resultCards.filter((c) => c.priority === priority);
+  }
+  if (status && status !== "all") {
+    resultCards = resultCards.filter((c) => c.status === status);
+  }
+  if (assignee) {
+    resultCards = resultCards.filter(
+      (c) => c.assignees && c.assignees.some((a) => (a._id || a) === assignee),
+    );
+  }
+  if (reporter) {
+    resultCards = resultCards.filter((c) => c.reporter === reporter);
+  }
+  if (label) {
+    const lblLower = label.toLowerCase();
+    resultCards = resultCards.filter(
+      (c) => c.labels && c.labels.some((l) => l.name.toLowerCase().includes(lblLower)),
+    );
+  }
+  if (hasSubtasks === "true") {
+    resultCards = resultCards.filter((c) => c.subtasks && c.subtasks.length > 0);
+  }
+
+  // Due Date filtering
+  if (dueDate) {
+    const now = new Date();
+    if (dueDate === "overdue") {
+      resultCards = resultCards.filter(
+        (c) => c.dueDate && new Date(c.dueDate) < now && c.status !== "done",
+      );
+    } else if (dueDate === "today") {
+      const startOfDay = new Date(new Date().setHours(0, 0, 0, 0));
+      const endOfDay = new Date(new Date().setHours(23, 59, 59, 999));
+      resultCards = resultCards.filter((c) => {
+        if (!c.dueDate) return false;
+        const d = new Date(c.dueDate);
+        return d >= startOfDay && d <= endOfDay;
+      });
+    } else if (dueDate === "this_week") {
+      const nextWeek = new Date(Date.now() + 7 * 86400000);
+      resultCards = resultCards.filter((c) => {
+        if (!c.dueDate) return false;
+        const d = new Date(c.dueDate);
+        return d >= now && d <= nextWeek;
+      });
+    }
+  }
+
+  // Multi-field text match across Title, Key, Description, Subtasks, Comments, Labels, Assignees
+  if (searchTerm) {
+    resultCards = resultCards.filter((c) => {
+      const titleMatch = c.title && c.title.toLowerCase().includes(searchTerm);
+      const keyMatch = c.key && c.key.toLowerCase().includes(searchTerm);
+      const descMatch = c.description && c.description.toLowerCase().includes(searchTerm);
+      const subtaskMatch =
+        c.subtasks &&
+        c.subtasks.some((s) => s.title.toLowerCase().includes(searchTerm));
+      const commentMatch =
+        c.comments &&
+        c.comments.some((cm) => cm.content && cm.content.toLowerCase().includes(searchTerm));
+      const labelMatch =
+        c.labels &&
+        c.labels.some((l) => l.name.toLowerCase().includes(searchTerm));
+      const assigneeMatch =
+        c.assignees &&
+        c.assignees.some((aid) => {
+          const u = store.users.find((usr) => usr._id === (aid._id || aid));
+          return u && u.name.toLowerCase().includes(searchTerm);
+        });
+
+      return (
+        titleMatch ||
+        keyMatch ||
+        descMatch ||
+        subtaskMatch ||
+        commentMatch ||
+        labelMatch ||
+        assigneeMatch
+      );
+    });
+  }
+
+  // Sorting
+  if (sortBy) {
+    const order = sortOrder === "asc" ? 1 : -1;
+    resultCards.sort((a, b) => {
+      if (sortBy === "priority") {
+        const pMap = { urgent: 4, high: 3, medium: 2, low: 1 };
+        return ((pMap[a.priority] || 0) - (pMap[b.priority] || 0)) * order;
+      }
+      if (sortBy === "title") {
+        return a.title.localeCompare(b.title) * order;
+      }
+      if (sortBy === "dueDate") {
+        return (new Date(a.dueDate || 0) - new Date(b.dueDate || 0)) * order;
+      }
+      if (sortBy === "createdAt") {
+        return (new Date(a.createdAt || 0) - new Date(b.createdAt || 0)) * order;
+      }
+      return (new Date(a.updatedAt || 0) - new Date(b.updatedAt || 0)) * order;
+    });
+  }
+
+  // Populate card details
+  const populatedCards = resultCards.map((card) => {
+    const assignees = (card.assignees || [])
+      .map((aid) => store.users.find((u) => u._id === (aid._id || aid)))
+      .filter(Boolean);
+    const reporter = store.users.find((u) => u._id === card.reporter);
+    const board = store.boards.find((b) => b._id === card.board);
+    const list = store.lists.find((l) => l._id === card.list);
+    const workspace = store.workspaces.find((w) => w._id === card.workspace);
+    return {
+      ...card,
+      assignees,
+      reporter,
+      boardName: board?.name,
+      listTitle: list?.title,
+      workspaceName: workspace?.name,
+    };
+  });
+
+  const facets = {
+    total: populatedCards.length,
+    byPriority: {
+      urgent: populatedCards.filter((c) => c.priority === "urgent").length,
+      high: populatedCards.filter((c) => c.priority === "high").length,
+      medium: populatedCards.filter((c) => c.priority === "medium").length,
+      low: populatedCards.filter((c) => c.priority === "low").length,
+    },
+    byStatus: {
+      todo: populatedCards.filter((c) => c.status === "todo").length,
+      in_progress: populatedCards.filter((c) => c.status === "in_progress").length,
+      in_review: populatedCards.filter((c) => c.status === "in_review").length,
+      done: populatedCards.filter((c) => c.status === "done" || c.status === "completed").length,
+    },
+  };
+
+  res.json({
+    status: "success",
+    data: {
+      cards: populatedCards,
+      facets,
+    },
+  });
+};
+
+app.get("/api/search", handleSearchEngine);
+app.get("/api/cards/search", handleSearchEngine);
+
+// --------------------------------------------------------------------------
+// In-App Notification System REST Endpoints
+// --------------------------------------------------------------------------
+app.get("/api/notifications", (req, res) => {
+  const { userId } = req.query;
+  let userNotifs = [...store.notifications];
+
+  if (userId) {
+    userNotifs = userNotifs.filter((n) => n.user === userId);
+  }
+
+  const populatedNotifs = userNotifs
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .map((n) => {
+      const actorDetail = store.users.find((u) => u._id === n.actor);
+      const cardDetail = store.cards.find((c) => c._id === n.card);
+      const boardDetail = store.boards.find((b) => b._id === n.board);
+      return { ...n, actorDetail, cardDetail, boardDetail };
+    });
+
+  const unreadCount = populatedNotifs.filter((n) => !n.isRead).length;
+
+  res.json({
+    status: "success",
+    data: {
+      notifications: populatedNotifs,
+      unreadCount,
+    },
+  });
+});
+
+app.put("/api/notifications/:id/read", (req, res) => {
+  const notif = store.notifications.find((n) => n._id === req.params.id);
+  if (!notif)
+    return res.status(404).json({ status: "error", message: "Notification not found" });
+
+  notif.isRead = true;
+  res.json({ status: "success", data: notif });
+});
+
+app.put("/api/notifications/read-all", (req, res) => {
+  const { userId } = req.body;
+  store.notifications.forEach((n) => {
+    if (!userId || n.user === userId) {
+      n.isRead = true;
+    }
+  });
+  res.json({ status: "success", message: "All notifications marked as read" });
+});
+
+app.delete("/api/notifications/:id", (req, res) => {
+  const idx = store.notifications.findIndex((n) => n._id === req.params.id);
+  if (idx !== -1) {
+    store.notifications.splice(idx, 1);
+  }
+  res.json({ status: "success", message: "Notification deleted" });
 });
 
 // --------------------------------------------------------------------------
@@ -959,6 +1245,24 @@ app.post("/api/cards", (req, res) => {
 
   // Broadcast card creation to board room
   io.to(boardId).emit("card_created", { boardId, listId, card: newCard });
+
+  // Trigger Notification to assignees
+  if (newCard.assignees && newCard.assignees.length > 0) {
+    const actorObj = store.users.find((u) => u._id === (reporter || store.users[0]._id));
+    newCard.assignees.forEach((aid) => {
+      if (aid !== (reporter || store.users[0]._id)) {
+        sendNotification({
+          userId: aid,
+          actorId: reporter || store.users[0]._id,
+          type: "assigned_card",
+          title: "New Task Assignment",
+          message: `${actorObj?.name || "A team member"} assigned you to task "${title.trim()}"`,
+          cardId: newCard._id,
+          boardId: boardId,
+        });
+      }
+    });
+  }
 
   res.status(201).json({ status: "success", data: newCard });
 });

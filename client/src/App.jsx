@@ -13,6 +13,7 @@ import CreateCardModal from "./components/CreateCardModal";
 import CreateBoardModal from "./components/CreateBoardModal";
 import CreateWorkspaceModal from "./components/CreateWorkspaceModal";
 import WorkspaceSettings from "./components/WorkspaceSettings";
+import SearchModal from "./components/SearchModal";
 import Toast from "./components/Toast";
 import {
   mockUsers,
@@ -20,6 +21,7 @@ import {
   mockBoards,
   mockLists,
   mockCards,
+  mockNotifications,
 } from "./mockData";
 
 import {
@@ -79,6 +81,82 @@ export default function App() {
     setWorkspaces(
       workspaces.map((w) => (w._id === updatedWs._id ? updatedWs : w)),
     );
+  };
+
+  // Search & Notifications State
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [notifications, setNotifications] = useState(mockNotifications);
+
+  // Global Keyboard Shortcut (Cmd+K / Ctrl+K)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsSearchModalOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Fetch Notifications for Logged-In User
+  const fetchNotifications = () => {
+    fetch(`${API_BASE}/notifications${currentUser ? `?userId=${currentUser._id}` : ''}`)
+      .then((res) => res.json())
+      .then((res) => {
+        if (res.status === 'success' && res.data) {
+          setNotifications(res.data);
+        }
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [currentUser]);
+
+  // Real-Time In-App Notification Broadcast Listener
+  useEffect(() => {
+    const handleNotificationReceived = (notif) => {
+      if (!currentUser || notif.user === currentUser._id || notif.user === 'all') {
+        setNotifications((prev) => [notif, ...prev]);
+        showToast(`🔔 ${notif.title}: ${notif.message}`, 'info');
+      }
+    };
+
+    socket.on('notification_received', handleNotificationReceived);
+    return () => {
+      socket.off('notification_received', handleNotificationReceived);
+    };
+  }, [currentUser]);
+
+  const handleMarkNotificationRead = (notifId) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n._id === notifId ? { ...n, isRead: true } : n))
+    );
+    fetch(`${API_BASE}/notifications/${notifId}/read`, { method: 'PUT' }).catch(() => {});
+  };
+
+  const handleMarkAllNotificationsRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    fetch(`${API_BASE}/notifications/read-all`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUser?._id }),
+    }).catch(() => {});
+  };
+
+  const handleDeleteNotification = (notifId) => {
+    setNotifications((prev) => prev.filter((n) => n._id !== notifId));
+    fetch(`${API_BASE}/notifications/${notifId}`, { method: 'DELETE' }).catch(() => {});
+  };
+
+  const handleSelectCardFromSearchOrNotif = (cardId, boardId) => {
+    if (boardId && boardId !== currentBoardId) {
+      setCurrentBoardId(boardId);
+    }
+    setActiveView('kanban');
+    setActiveCardId(cardId);
   };
 
   // Fetch Users & Data Models
@@ -855,8 +933,16 @@ export default function App() {
         currentUser={currentUser}
         onOpenLoginModal={() => setIsLoginModalOpen(true)}
         onLogoutUser={handleLogoutUser}
-        onOpenInviteModal={() => setIsInviteModalOpen(true)}
         activeBoardPeers={activeBoardPeers}
+        onOpenSearchModal={() => setIsSearchModalOpen(true)}
+        notifications={notifications}
+        unreadCount={notifications.filter((n) => !n.isRead).length}
+        onMarkNotificationRead={handleMarkNotificationRead}
+        onMarkAllNotificationsRead={handleMarkAllNotificationsRead}
+        onDeleteNotification={handleDeleteNotification}
+        onNotificationClick={(notif) => {
+          if (notif.card) handleSelectCardFromSearchOrNotif(notif.card, notif.board);
+        }}
       />
 
       {/* Main Workspace Layout */}
@@ -997,6 +1083,16 @@ export default function App() {
         isOpen={isCreateWorkspaceModalOpen}
         onClose={() => setIsCreateWorkspaceModalOpen(false)}
         onCreateWorkspace={handleCreateWorkspace}
+      />
+
+      {/* Comprehensive Task Search Engine Modal */}
+      <SearchModal
+        isOpen={isSearchModalOpen}
+        onClose={() => setIsSearchModalOpen(false)}
+        onSelectCard={handleSelectCardFromSearchOrNotif}
+        workspaces={workspaces}
+        boards={workspaceBoards}
+        users={users}
       />
 
       {/* Toast Notification Container */}

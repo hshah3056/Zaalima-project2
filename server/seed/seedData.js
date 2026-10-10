@@ -7,7 +7,8 @@ const {
   mockBoards, 
   mockLists, 
   mockCards, 
-  mockActivities 
+  mockActivities,
+  mockNotifications
 } = require('../../client/src/mockData');
 
 module.exports = {
@@ -16,5 +17,6 @@ module.exports = {
   mockBoards,
   mockLists,
   mockCards,
-  mockActivities
+  mockActivities,
+  mockNotifications
 };

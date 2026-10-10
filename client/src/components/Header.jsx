@@ -13,7 +13,11 @@ import {
   Users,
   ChevronDown,
   LogOut,
-  UserPlus
+  UserPlus,
+  Bell,
+  CheckCheck,
+  Trash2,
+  Inbox
 } from 'lucide-react';
 
 export default function Header({ 
@@ -31,9 +35,23 @@ export default function Header({
   onOpenLoginModal,
   onLogoutUser,
   onOpenInviteModal,
-  activeBoardPeers = []
+  activeBoardPeers = [],
+  onOpenSearchModal,
+  notifications = [],
+  unreadCount = 0,
+  onMarkNotificationRead,
+  onMarkAllNotificationsRead,
+  onDeleteNotification,
+  onNotificationClick
 }) {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isNotificationMenuOpen, setIsNotificationMenuOpen] = useState(false);
+  const [notifFilter, setNotifFilter] = useState('all');
+
+  const filteredNotifications = notifications.filter(n => {
+    if (notifFilter === 'unread') return !n.isRead;
+    return true;
+  });
 
   return (
     <header className="glass-panel" style={{ 
@@ -191,8 +209,244 @@ export default function Header({
       </div>
 
       {/* Right Side User Login & Actions */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', position: 'relative' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', position: 'relative' }}>
         
+        {/* Task Search Engine Trigger Button */}
+        <button
+          onClick={onOpenSearchModal}
+          title="Search Tasks (Cmd+K or Ctrl+K)"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            background: '#F8FAFC',
+            border: '1px solid #CBD5E1',
+            borderRadius: '8px',
+            padding: '0.4rem 0.75rem',
+            cursor: 'pointer',
+            fontSize: '0.82rem',
+            color: '#64748B',
+            fontWeight: 600,
+            transition: 'all 0.15s'
+          }}
+        >
+          <Search size={15} color="#4F46E5" />
+          <span>Search tasks...</span>
+          <kbd style={{
+            background: '#E2E8F0',
+            color: '#475569',
+            borderRadius: '4px',
+            padding: '1px 5px',
+            fontSize: '0.68rem',
+            fontFamily: 'monospace',
+            fontWeight: 700
+          }}>⌘K</kbd>
+        </button>
+
+        {/* In-App Notification Center Drawer Trigger */}
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => setIsNotificationMenuOpen(!isNotificationMenuOpen)}
+            title="In-App Notification Center"
+            style={{
+              position: 'relative',
+              background: isNotificationMenuOpen ? '#EEF2FF' : '#F8FAFC',
+              border: isNotificationMenuOpen ? '1px solid #818CF8' : '1px solid #CBD5E1',
+              color: unreadCount > 0 ? '#4F46E5' : '#64748B',
+              padding: '0.45rem',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.15s'
+            }}
+          >
+            <Bell size={18} />
+            {unreadCount > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: '-4px',
+                right: '-4px',
+                background: '#EF4444',
+                color: '#FFFFFF',
+                fontSize: '0.65rem',
+                fontWeight: 800,
+                borderRadius: '10px',
+                minWidth: '16px',
+                height: '16px',
+                padding: '0 4px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 6px rgba(239, 68, 68, 0.4)'
+              }}>
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {/* Notification Dropdown Popover */}
+          {isNotificationMenuOpen && (
+            <div
+              className="glass-panel animate-modal"
+              style={{
+                position: 'absolute',
+                right: 0,
+                top: '42px',
+                width: '380px',
+                maxWidth: '92vw',
+                maxHeight: '480px',
+                background: '#FFFFFF',
+                border: '1px solid #E2E8F0',
+                borderRadius: '14px',
+                boxShadow: 'var(--shadow-xl)',
+                zIndex: 100,
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden'
+              }}
+            >
+              {/* Header Bar */}
+              <div style={{
+                padding: '0.75rem 1rem',
+                borderBottom: '1px solid #F1F5F9',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: '#F8FAFC'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Bell size={16} color="#4F46E5" />
+                  <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0F172A' }}>Notifications</span>
+                  {unreadCount > 0 && (
+                    <span style={{ background: '#EEF2FF', color: '#4F46E5', fontSize: '0.7rem', fontWeight: 800, padding: '1px 6px', borderRadius: '10px' }}>
+                      {unreadCount} new
+                    </span>
+                  )}
+                </div>
+
+                {unreadCount > 0 && (
+                  <button
+                    onClick={onMarkAllNotificationsRead}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#4F46E5',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '3px'
+                    }}
+                  >
+                    <CheckCheck size={14} /> Mark all read
+                  </button>
+                )}
+              </div>
+
+              {/* Filter Tabs */}
+              <div style={{ display: 'flex', borderBottom: '1px solid #F1F5F9', background: '#FFFFFF', padding: '4px 8px' }}>
+                <button
+                  onClick={() => setNotifFilter('all')}
+                  style={{
+                    flex: 1,
+                    padding: '4px',
+                    border: 'none',
+                    background: notifFilter === 'all' ? '#F1F5F9' : 'transparent',
+                    color: notifFilter === 'all' ? '#0F172A' : '#64748B',
+                    fontWeight: 700,
+                    fontSize: '0.75rem',
+                    borderRadius: '6px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  All ({notifications.length})
+                </button>
+                <button
+                  onClick={() => setNotifFilter('unread')}
+                  style={{
+                    flex: 1,
+                    padding: '4px',
+                    border: 'none',
+                    background: notifFilter === 'unread' ? '#F1F5F9' : 'transparent',
+                    color: notifFilter === 'unread' ? '#0F172A' : '#64748B',
+                    fontWeight: 700,
+                    fontSize: '0.75rem',
+                    borderRadius: '6px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Unread ({unreadCount})
+                </button>
+              </div>
+
+              {/* List Content */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
+                {filteredNotifications.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#94A3B8' }}>
+                    <Inbox size={32} style={{ marginBottom: '0.5rem', color: '#CBD5E1' }} />
+                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#475569' }}>No notifications</div>
+                    <div style={{ fontSize: '0.75rem', marginTop: '2px' }}>You're all caught up!</div>
+                  </div>
+                ) : (
+                  filteredNotifications.map((n) => (
+                    <div
+                      key={n._id}
+                      onClick={() => {
+                        if (!n.isRead && onMarkNotificationRead) onMarkNotificationRead(n._id);
+                        if (onNotificationClick) onNotificationClick(n);
+                        setIsNotificationMenuOpen(false);
+                      }}
+                      style={{
+                        padding: '0.65rem 0.75rem',
+                        borderRadius: '8px',
+                        background: n.isRead ? '#FFFFFF' : '#F4F7FF',
+                        border: n.isRead ? '1px solid #F1F5F9' : '1px solid #C7D2FE',
+                        marginBottom: '0.4rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        justifyContent: 'space-between',
+                        gap: '0.5rem',
+                        transition: 'all 0.12s'
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '2px' }}>
+                          {!n.isRead && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#4F46E5' }} />}
+                          <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#0F172A' }}>{n.title}</span>
+                        </div>
+                        <p style={{ fontSize: '0.74rem', color: '#475569', margin: 0, lineHeight: 1.35 }}>{n.message}</p>
+                        <span style={{ fontSize: '0.65rem', color: '#94A3B8', marginTop: '4px', display: 'inline-block' }}>
+                          {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onDeleteNotification) onDeleteNotification(n._id);
+                        }}
+                        title="Delete notification"
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#94A3B8',
+                          cursor: 'pointer',
+                          padding: '2px'
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Active Logged In User Pill with Dropdown */}
         <div style={{ position: 'relative' }}>
           <div 
@@ -407,5 +661,6 @@ export default function Header({
     </header>
   );
 }
+
 
 
