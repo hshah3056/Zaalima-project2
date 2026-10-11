@@ -41,7 +41,8 @@ export default function BoardView({
   onReorderLists,
   currentUser,
   activeBoardPeers = [],
-  activities = []
+  activities = [],
+  cardTypingUsers = {}
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPriority, setSelectedPriority] = useState('all');
@@ -561,6 +562,8 @@ export default function BoardView({
                                           {...cardProvided.draggableProps}
                                           {...cardProvided.dragHandleProps}
                                           onClick={() => onCardClick(card._id)}
+                                          data-testid={`card-${card.key}`}
+                                          data-card-id={card._id}
                                           className="glass-card"
                                           style={{
                                             padding: '0.85rem',
@@ -578,7 +581,10 @@ export default function BoardView({
                                         >
                                           {/* Card Top Meta: Key & Priority */}
                                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.4rem' }}>
-                                            <span style={{ fontSize: '0.7rem', fontFamily: 'var(--font-mono)', color: '#4F46E5', fontWeight: 700 }}>
+                                            <span 
+                                              onClick={(e) => { e.stopPropagation(); onCardClick(card._id); }}
+                                              style={{ fontSize: '0.7rem', fontFamily: 'var(--font-mono)', color: '#4F46E5', fontWeight: 700, cursor: 'pointer' }}
+                                            >
                                               {card.key}
                                             </span>
 
@@ -599,8 +605,33 @@ export default function BoardView({
                                             </div>
                                           </div>
 
+                                          {/* Live Typing Indicator Badge on Card */}
+                                          {cardTypingUsers?.[card._id] && cardTypingUsers[card._id].length > 0 && (
+                                            <div
+                                              className="card-typing-pill"
+                                              style={{ marginBottom: '0.45rem' }}
+                                              title={`${cardTypingUsers[card._id].map((u) => u.userName).join(', ')} is currently typing on this card`}
+                                            >
+                                              <span style={{ fontSize: '0.7rem' }}>✍️</span>
+                                              <span>
+                                                {cardTypingUsers[card._id]
+                                                  .map((u) => u.userName.split(' ')[0])
+                                                  .join(', ')}{' '}
+                                                typing...
+                                              </span>
+                                              <div className="typing-dots">
+                                                <span />
+                                                <span />
+                                                <span />
+                                              </div>
+                                            </div>
+                                          )}
+
                                           {/* Card Title */}
-                                          <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.5rem', lineHeight: '1.4' }}>
+                                          <h4 
+                                            onClick={(e) => { e.stopPropagation(); onCardClick(card._id); }}
+                                            style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.5rem', lineHeight: '1.4', cursor: 'pointer' }}
+                                          >
                                             {card.title}
                                           </h4>
 

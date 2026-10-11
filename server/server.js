@@ -252,24 +252,47 @@ io.on("connection", (socket) => {
     console.log(`🚪 [Card Room] Socket ${socket.id} left ${roomName}`);
   });
 
-  socket.on("typing_start", ({ cardId, userId, userName }) => {
+  socket.on("typing_start", ({ cardId, userId, userName, avatar, threadId, boardId }) => {
     if (!cardId) return;
+    // Broadcast to card room for CardModal typing indicator
     socket.to(`card_${cardId}`).emit("user_typing", {
       cardId,
       userId,
       userName: userName || "A teammate",
+      avatar,
+      threadId: threadId || null,
     });
+
+    // Also broadcast to board room so Kanban board card reflects active typing
+    const targetBoard = boardId || activeConnections.get(socket.id)?.boardId;
+    if (targetBoard) {
+      socket.to(targetBoard).emit("card_typing_start", {
+        cardId,
+        userId,
+        userName: userName || "A teammate",
+        avatar,
+      });
+    }
   });
 
-  socket.on("typing_stop", ({ cardId, userId }) => {
+  socket.on("typing_stop", ({ cardId, userId, threadId, boardId }) => {
     if (!cardId) return;
     socket.to(`card_${cardId}`).emit("user_stopped_typing", {
       cardId,
       userId,
+      threadId: threadId || null,
     });
+
+    const targetBoard = boardId || activeConnections.get(socket.id)?.boardId;
+    if (targetBoard) {
+      socket.to(targetBoard).emit("card_typing_stop", {
+        cardId,
+        userId,
+      });
+    }
   });
 
-  socket.on("post_comment", ({ cardId, comment }) => {
+  socket.on("post_comment", ({ cardId, comment, boardId }) => {
     if (!cardId || !comment) return;
     console.log(
       `✉️ [Card Comment] Live comment in card_${cardId} by ${comment.user}`,
@@ -278,6 +301,80 @@ io.on("connection", (socket) => {
       cardId,
       comment,
     });
+
+    const targetBoard = boardId || activeConnections.get(socket.id)?.boardId;
+    if (targetBoard) {
+      const card = store.cards.find((c) => c._id === cardId);
+      if (card) {
+        socket.to(targetBoard).emit("card_updated", {
+          boardId: targetBoard,
+          cardId,
+          card,
+        });
+      }
+    }
+  });
+
+  socket.on("comment_updated", ({ cardId, comment, boardId }) => {
+    if (!cardId || !comment) return;
+    socket.to(`card_${cardId}`).emit("comment_updated", {
+      cardId,
+      comment,
+    });
+    const targetBoard = boardId || activeConnections.get(socket.id)?.boardId;
+    if (targetBoard) {
+      const card = store.cards.find((c) => c._id === cardId);
+      if (card) {
+        socket.to(targetBoard).emit("card_updated", { boardId: targetBoard, cardId, card });
+      }
+    }
+  });
+
+  socket.on("comment_deleted", ({ cardId, commentId, boardId }) => {
+    if (!cardId || !commentId) return;
+    socket.to(`card_${cardId}`).emit("comment_deleted", {
+      cardId,
+      commentId,
+    });
+    const targetBoard = boardId || activeConnections.get(socket.id)?.boardId;
+    if (targetBoard) {
+      const card = store.cards.find((c) => c._id === cardId);
+      if (card) {
+        socket.to(targetBoard).emit("card_updated", { boardId: targetBoard, cardId, card });
+      }
+    }
+  });
+
+  socket.on("comment_reaction", ({ cardId, commentId, reactions, boardId }) => {
+    if (!cardId || !commentId) return;
+    socket.to(`card_${cardId}`).emit("comment_reaction", {
+      cardId,
+      commentId,
+      reactions,
+    });
+    const targetBoard = boardId || activeConnections.get(socket.id)?.boardId;
+    if (targetBoard) {
+      const card = store.cards.find((c) => c._id === cardId);
+      if (card) {
+        socket.to(targetBoard).emit("card_updated", { boardId: targetBoard, cardId, card });
+      }
+    }
+  });
+
+  socket.on("comment_resolved", ({ cardId, commentId, isResolved, boardId }) => {
+    if (!cardId || !commentId) return;
+    socket.to(`card_${cardId}`).emit("comment_resolved", {
+      cardId,
+      commentId,
+      isResolved,
+    });
+    const targetBoard = boardId || activeConnections.get(socket.id)?.boardId;
+    if (targetBoard) {
+      const card = store.cards.find((c) => c._id === cardId);
+      if (card) {
+        socket.to(targetBoard).emit("card_updated", { boardId: targetBoard, cardId, card });
+      }
+    }
   });
 
   // Heartbeat ping to keep track of connection responsiveness
@@ -322,7 +419,7 @@ app.set("io", io);
 app.get("/api/data-models", (req, res) => {
   res.json({
     status: "success",
-    phase: "Day 1–2: Task Search Engine & In-App Notification System",
+    phase: "Day 6–7: Real-Time Typing Indicators & Card-Level Comment Threads",
     stack: "MERN Stack (MongoDB, Express, React, Node.js)",
     models: {
       User: UserSchemaDefinition,
@@ -1544,8 +1641,8 @@ app.delete("/api/cards/:id/subtasks/:subtaskId", (req, res) => {
 });
 
 app.post("/api/cards/:id/comments", (req, res) => {
-  const { userId, content } = req.body;
-  if (!content)
+  const { userId, content, parentId } = req.body;
+  if (!content || !content.trim())
     return res
       .status(400)
       .json({ status: "error", message: "Comment content is required" });
@@ -1554,24 +1651,84 @@ app.post("/api/cards/:id/comments", (req, res) => {
   if (!card)
     return res.status(404).json({ status: "error", message: "Card not found" });
 
+  const commenterUser = store.users.find((u) => u._id === userId) || store.users[0];
   const newComment = {
-    id: `cmt_${Date.now()}`,
-    user: userId || store.users[0]._id,
+    id: `cmt_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+    user: userId || (store.users[0] ? store.users[0]._id : "usr_001"),
     content: content.trim(),
+    parentId: parentId || null,
+    reactions: {},
+    isResolved: false,
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
 
   card.comments = card.comments || [];
   card.comments.push(newComment);
   card.updatedAt = new Date().toISOString();
 
-  // Day 6-7: Broadcast new comment to the card-scoped room
+  // Audit activity stream
+  store.activities.unshift({
+    _id: `act_${Date.now()}`,
+    workspace: card.workspace,
+    board: card.board,
+    card: card._id,
+    user: newComment.user,
+    action: parentId ? "replied_to_comment" : "added_comment",
+    details: {
+      cardTitle: card.title,
+      commentPreview: newComment.content.slice(0, 50),
+    },
+    createdAt: new Date().toISOString(),
+  });
+
+  // Handle Thread Notifications
+  if (parentId) {
+    const parentComment = card.comments.find((c) => c.id === parentId);
+    if (parentComment && parentComment.user !== newComment.user) {
+      sendNotification({
+        userId: parentComment.user,
+        actorId: newComment.user,
+        type: "comment_added",
+        title: "New Reply in Thread",
+        message: `${commenterUser?.name || "A teammate"} replied to your comment on "${card.title}"`,
+        cardId: card._id,
+        boardId: card.board,
+      });
+    }
+  }
+
+  // Handle @mentions
+  const mentionMatches = newComment.content.match(/@([a-zA-Z0-9_\s]+)/g);
+  if (mentionMatches) {
+    mentionMatches.forEach((m) => {
+      const cleanName = m.replace("@", "").trim().toLowerCase();
+      const mentionedUser = store.users.find(
+        (u) =>
+          u._id !== newComment.user &&
+          (u.name.toLowerCase().includes(cleanName) ||
+            u.username?.toLowerCase().includes(cleanName)),
+      );
+      if (mentionedUser) {
+        sendNotification({
+          userId: mentionedUser._id,
+          actorId: newComment.user,
+          type: "mentioned",
+          title: "Mentioned in Comment",
+          message: `${commenterUser?.name || "A teammate"} mentioned you in card "${card.title}"`,
+          cardId: card._id,
+          boardId: card.board,
+        });
+      }
+    });
+  }
+
+  // Broadcast to card room and board room
   io.to(`card_${card._id}`).emit("comment_added", {
     cardId: card._id,
     comment: newComment,
   });
 
-  // Also broadcast full card update to the board room
   if (card.board) {
     io.to(card.board).emit("card_updated", {
       boardId: card.board,
@@ -1583,17 +1740,30 @@ app.post("/api/cards/:id/comments", (req, res) => {
   res.status(201).json({ status: "success", data: newComment, card });
 });
 
-app.delete("/api/cards/:id/comments/:commentId", (req, res) => {
+app.put("/api/cards/:id/comments/:commentId", (req, res) => {
+  const { content } = req.body;
+  if (!content || !content.trim())
+    return res
+      .status(400)
+      .json({ status: "error", message: "Comment content is required" });
+
   const card = store.cards.find((c) => c._id === req.params.id);
   if (!card)
     return res.status(404).json({ status: "error", message: "Card not found" });
 
-  card.comments = (card.comments || []).filter(
-    (c) => c.id !== req.params.commentId,
-  );
+  const comment = (card.comments || []).find((c) => c.id === req.params.commentId);
+  if (!comment)
+    return res.status(404).json({ status: "error", message: "Comment not found" });
+
+  comment.content = content.trim();
+  comment.updatedAt = new Date().toISOString();
   card.updatedAt = new Date().toISOString();
 
-  // Broadcast deletion to board and card room
+  io.to(`card_${card._id}`).emit("comment_updated", {
+    cardId: card._id,
+    comment,
+  });
+
   if (card.board) {
     io.to(card.board).emit("card_updated", {
       boardId: card.board,
@@ -1602,7 +1772,115 @@ app.delete("/api/cards/:id/comments/:commentId", (req, res) => {
     });
   }
 
-  res.json({ status: "success", message: "Comment removed", card });
+  res.json({ status: "success", data: comment, card });
+});
+
+app.delete("/api/cards/:id/comments/:commentId", (req, res) => {
+  const card = store.cards.find((c) => c._id === req.params.id);
+  if (!card)
+    return res.status(404).json({ status: "error", message: "Card not found" });
+
+  const commentId = req.params.commentId;
+  // Cascading delete: delete comment and any child replies belonging to this thread
+  card.comments = (card.comments || []).filter(
+    (c) => c.id !== commentId && c.parentId !== commentId,
+  );
+  card.updatedAt = new Date().toISOString();
+
+  io.to(`card_${card._id}`).emit("comment_deleted", {
+    cardId: card._id,
+    commentId,
+  });
+
+  if (card.board) {
+    io.to(card.board).emit("card_updated", {
+      boardId: card.board,
+      cardId: card._id,
+      card,
+    });
+  }
+
+  res.json({ status: "success", message: "Comment and thread replies removed", card });
+});
+
+// Toggle reaction on a comment
+app.patch("/api/cards/:id/comments/:commentId/reactions", (req, res) => {
+  const { emoji, userId } = req.body;
+  if (!emoji || !userId)
+    return res.status(400).json({ status: "error", message: "Emoji and userId required" });
+
+  const card = store.cards.find((c) => c._id === req.params.id);
+  if (!card)
+    return res.status(404).json({ status: "error", message: "Card not found" });
+
+  const comment = (card.comments || []).find((c) => c.id === req.params.commentId);
+  if (!comment)
+    return res.status(404).json({ status: "error", message: "Comment not found" });
+
+  comment.reactions = comment.reactions || {};
+  const currentList = comment.reactions[emoji] || [];
+  const idx = currentList.indexOf(userId);
+
+  if (idx > -1) {
+    currentList.splice(idx, 1);
+    if (currentList.length === 0) {
+      delete comment.reactions[emoji];
+    } else {
+      comment.reactions[emoji] = currentList;
+    }
+  } else {
+    currentList.push(userId);
+    comment.reactions[emoji] = currentList;
+  }
+
+  card.updatedAt = new Date().toISOString();
+
+  io.to(`card_${card._id}`).emit("comment_reaction", {
+    cardId: card._id,
+    commentId: comment.id,
+    reactions: comment.reactions,
+  });
+
+  if (card.board) {
+    io.to(card.board).emit("card_updated", {
+      boardId: card.board,
+      cardId: card._id,
+      card,
+    });
+  }
+
+  res.json({ status: "success", data: comment.reactions, card });
+});
+
+// Toggle resolved status on a comment thread
+app.patch("/api/cards/:id/comments/:commentId/resolve", (req, res) => {
+  const { isResolved } = req.body;
+  const card = store.cards.find((c) => c._id === req.params.id);
+  if (!card)
+    return res.status(404).json({ status: "error", message: "Card not found" });
+
+  const comment = (card.comments || []).find((c) => c.id === req.params.commentId);
+  if (!comment)
+    return res.status(404).json({ status: "error", message: "Comment not found" });
+
+  comment.isResolved = isResolved !== undefined ? Boolean(isResolved) : !comment.isResolved;
+  card.updatedAt = new Date().toISOString();
+
+  io.to(`card_${card._id}`).emit("comment_resolved", {
+    cardId: card._id,
+    commentId: comment.id,
+    isResolved: comment.isResolved,
+  });
+
+  if (card.board) {
+    io.to(card.board).emit("card_updated", {
+      boardId: card.board,
+      cardId: card._id,
+      card,
+    });
+  }
+
+  res.json({ status: "success", data: comment, card });
 });
 
 // --------------------------------------------------------------------------

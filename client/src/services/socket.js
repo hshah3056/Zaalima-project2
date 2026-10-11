@@ -88,3 +88,58 @@ export const emitListDeleted = (data) => {
     socket.emit("list_deleted", data);
   }
 };
+
+// Card-level comment thread & typing indicator emitters
+export const joinCardRoom = (cardId, userId, userName) => {
+  if (socket.connected && cardId) {
+    socket.emit("join_card", { cardId, userId, userName });
+  }
+};
+
+export const leaveCardRoom = (cardId) => {
+  if (socket.connected && cardId) {
+    socket.emit("leave_card", { cardId });
+  }
+};
+
+export const emitTypingStart = ({ cardId, userId, userName, avatar, threadId, boardId }) => {
+  if (socket.connected && cardId) {
+    socket.emit("typing_start", { cardId, userId, userName, avatar, threadId, boardId });
+  }
+};
+
+export const emitTypingStop = ({ cardId, userId, threadId, boardId }) => {
+  if (socket.connected && cardId) {
+    socket.emit("typing_stop", { cardId, userId, threadId, boardId });
+  }
+};
+
+export const emitPostComment = ({ cardId, comment, boardId }) => {
+  if (socket.connected && cardId) {
+    socket.emit("post_comment", { cardId, comment, boardId });
+  }
+};
+
+export const emitCommentUpdated = ({ cardId, comment, boardId }) => {
+  if (socket.connected && cardId) {
+    socket.emit("comment_updated", { cardId, comment, boardId });
+  }
+};
+
+export const emitCommentDeleted = ({ cardId, commentId, boardId }) => {
+  if (socket.connected && cardId) {
+    socket.emit("comment_deleted", { cardId, commentId, boardId });
+  }
+};
+
+export const emitCommentReaction = ({ cardId, commentId, reactions, boardId }) => {
+  if (socket.connected && cardId) {
+    socket.emit("comment_reaction", { cardId, commentId, reactions, boardId });
+  }
+};
+
+export const emitCommentResolved = ({ cardId, commentId, isResolved, boardId }) => {
+  if (socket.connected && cardId) {
+    socket.emit("comment_resolved", { cardId, commentId, isResolved, boardId });
+  }
+};

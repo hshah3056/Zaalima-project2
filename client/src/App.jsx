@@ -100,6 +100,7 @@ export default function App() {
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
   const [isCreateWorkspaceModalOpen, setIsCreateWorkspaceModalOpen] =
     useState(false);
+  const [cardTypingUsers, setCardTypingUsers] = useState({});
 
   const handleUpdateWorkspace = (updatedWs) => {
     setWorkspaces(
@@ -125,7 +126,8 @@ export default function App() {
       .then((res) => res.json())
       .then((res) => {
         if (res.status === 'success' && res.data) {
-          setNotifications(res.data);
+          const notifsList = Array.isArray(res.data) ? res.data : (res.data.notifications || []);
+          setNotifications(notifsList);
         }
       })
       .catch(() => {});
@@ -209,6 +211,7 @@ export default function App() {
 
   useEffect(() => {
     if (currentBoardId) {
+      setCardTypingUsers({});
       fetchBoardDetails(currentBoardId);
     }
   }, [currentBoardId]);
@@ -310,6 +313,43 @@ export default function App() {
     socket.on("card_updated", handleRealtimeCardUpdated);
     socket.on("card_deleted", handleRealtimeCardDeleted);
 
+    const handleCardTypingStart = (data) => {
+      if (!data.cardId || data.userId === currentUser?._id) return;
+      setCardTypingUsers((prev) => {
+        const list = prev[data.cardId] || [];
+        if (list.some((u) => u.userId === data.userId)) return prev;
+        return {
+          ...prev,
+          [data.cardId]: [
+            ...list,
+            {
+              userId: data.userId,
+              userName: data.userName,
+              avatar: data.avatar,
+              timestamp: Date.now(),
+            },
+          ],
+        };
+      });
+    };
+
+    const handleCardTypingStop = (data) => {
+      if (!data.cardId) return;
+      setCardTypingUsers((prev) => {
+        const list = prev[data.cardId] || [];
+        const nextList = list.filter((u) => u.userId !== data.userId);
+        if (nextList.length === 0) {
+          const copy = { ...prev };
+          delete copy[data.cardId];
+          return copy;
+        }
+        return { ...prev, [data.cardId]: nextList };
+      });
+    };
+
+    socket.on("card_typing_start", handleCardTypingStart);
+    socket.on("card_typing_stop", handleCardTypingStop);
+
     socket.on("list_created", handleRealtimeListEvent);
     socket.on("list_updated", handleRealtimeListEvent);
     socket.on("list_reordered", handleRealtimeListEvent);
@@ -326,6 +366,9 @@ export default function App() {
       socket.off("card_created", handleRealtimeCardCreated);
       socket.off("card_updated", handleRealtimeCardUpdated);
       socket.off("card_deleted", handleRealtimeCardDeleted);
+
+      socket.off("card_typing_start", handleCardTypingStart);
+      socket.off("card_typing_stop", handleCardTypingStop);
 
       socket.off("list_created", handleRealtimeListEvent);
       socket.off("list_updated", handleRealtimeListEvent);
@@ -1006,13 +1049,20 @@ export default function App() {
     : mockCards;
 
   let activeCard = null;
-  if (activeCardId && boardDetails?.lists) {
-    for (const l of boardDetails.lists) {
-      const found = l.cards?.find((c) => c._id === activeCardId);
-      if (found) {
-        activeCard = found;
-        break;
+  if (activeCardId) {
+    if (boardDetails?.lists) {
+      for (const l of boardDetails.lists) {
+        const found = l.cards?.find((c) => c._id === activeCardId);
+        if (found) {
+          activeCard = found;
+          break;
+        }
       }
+    }
+    if (!activeCard) {
+      activeCard =
+        allCards.find((c) => c._id === activeCardId) ||
+        mockCards.find((c) => c._id === activeCardId);
     }
   }
 
@@ -1061,8 +1111,8 @@ export default function App() {
         activeBoardPeers={activeBoardPeers}
         isSocketConnected={isSocketConnected}
         onOpenSearchModal={() => setIsSearchModalOpen(true)}
-        notifications={notifications}
-        unreadCount={notifications.filter((n) => !n.isRead).length}
+        notifications={Array.isArray(notifications) ? notifications : []}
+        unreadCount={(Array.isArray(notifications) ? notifications : []).filter((n) => !n.isRead).length}
         onMarkNotificationRead={handleMarkNotificationRead}
         onMarkAllNotificationsRead={handleMarkAllNotificationsRead}
         onDeleteNotification={handleDeleteNotification}
@@ -1152,6 +1202,7 @@ export default function App() {
             currentUser={currentUser}
             activeBoardPeers={activeBoardPeers}
             activities={boardActivities}
+            cardTypingUsers={cardTypingUsers}
           />
         )}
       </div>
@@ -1181,15 +1232,17 @@ export default function App() {
       />
 
       {/* Card Details Modal (Wired with Socket instance) */}
-      <CardModal
-        isOpen={Boolean(activeCardId)}
-        onClose={() => setActiveCardId(null)}
-        card={activeCard}
-        users={users}
-        currentUser={currentUser}
-        onUpdateCard={handleUpdateCard}
-        socket={socket}
-      />
+      {activeCard && (
+        <CardModal
+          isOpen={Boolean(activeCardId)}
+          onClose={() => setActiveCardId(null)}
+          card={activeCard}
+          users={users}
+          currentUser={currentUser}
+          onUpdateCard={handleUpdateCard}
+          socket={socket}
+        />
+      )}
 
       {/* Creation Modals */}
       <CreateCardModal

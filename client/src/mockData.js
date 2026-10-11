@@ -201,7 +201,46 @@ export const mockCards = [
         id: "cmt_1",
         user: "usr_002",
         content: "Data models must support real-time Socket updates for drag-and-drop actions across boards!",
+        parentId: null,
+        reactions: { "👍": ["usr_001", "usr_003"], "🚀": ["usr_002"] },
+        isResolved: false,
         createdAt: "2026-09-28T11:00:00Z"
+      },
+      {
+        id: "cmt_1_1",
+        user: "usr_001",
+        content: "Agreed @SarahConnor! We've hooked up card-scoped socket rooms so typing indicators and comments stay lightning fast.",
+        parentId: "cmt_1",
+        reactions: { "❤️": ["usr_002"], "🎉": ["usr_003"] },
+        isResolved: false,
+        createdAt: "2026-09-28T11:15:00Z"
+      },
+      {
+        id: "cmt_1_2",
+        user: "usr_003",
+        content: "Confirmed working with sub-10ms broadcast latency across the team.",
+        parentId: "cmt_1",
+        reactions: { "👍": ["usr_001"] },
+        isResolved: false,
+        createdAt: "2026-09-28T11:30:00Z"
+      },
+      {
+        id: "cmt_2",
+        user: "usr_004",
+        content: "Can we ensure the typing indicators have animated bouncing dots and multi-user awareness?",
+        parentId: null,
+        reactions: { "👀": ["usr_001"] },
+        isResolved: true,
+        createdAt: "2026-09-28T13:00:00Z"
+      },
+      {
+        id: "cmt_2_1",
+        user: "usr_001",
+        content: "Done! Live typing indicators now animate on both the Card Modal and the Board view cards.",
+        parentId: "cmt_2",
+        reactions: { "🚀": ["usr_004", "usr_002"] },
+        isResolved: true,
+        createdAt: "2026-09-28T13:20:00Z"
       }
     ],
     createdAt: "2026-09-28T09:00:00Z",
@@ -261,9 +300,26 @@ export const mockCards = [
       { id: "st_303", title: "Interactive Card Modal with comments & checklist", completed: true },
       { id: "st_304", title: "Day 1-2 Data Models Schema Inspector modal", completed: true }
     ],
-    attachments: [],
-    comments: [],
-    createdAt: "2026-09-28T09:30:00Z",
+    comments: [
+      {
+        id: "cmt_301",
+        user: "usr_004",
+        content: "Working on modernizing the comment threads and typing animations across the board.",
+        parentId: null,
+        reactions: { "❤️": ["usr_001"], "🚀": ["usr_003"] },
+        isResolved: false,
+        createdAt: "2026-09-28T14:10:00Z"
+      },
+      {
+        id: "cmt_302",
+        user: "usr_001",
+        content: "Great job! Let's make sure emoji reactions and replies update live via WebSockets.",
+        parentId: "cmt_301",
+        reactions: { "👍": ["usr_004"] },
+        isResolved: false,
+        createdAt: "2026-09-28T14:25:00Z"
+      }
+    ],
     updatedAt: "2026-09-28T13:45:00Z"
   },
   {
