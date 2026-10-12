@@ -37,6 +37,7 @@ export default function Header({
   isSocketConnected = true,
   notifications = [],
   onClearNotifications = () => {},
+  onOpenSearch = () => {},
 }) {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -152,6 +153,41 @@ export default function Header({
           </select>
         </div>
       </div>
+
+      {/* Quick Search Shortcut Button */}
+        <button
+          onClick={onOpenSearch}
+          title="Search tasks (Ctrl + K)"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            background: "#F8FAFC",
+            border: "1px solid #CBD5E1",
+            borderRadius: "8px",
+            padding: "0.4rem 0.75rem",
+            color: "#64748B",
+            fontSize: "0.8rem",
+            cursor: "pointer",
+            outline: "none",
+          }}
+        >
+          <Search size={14} />
+          <span>Search tasks...</span>
+          <kbd
+            style={{
+              fontSize: "0.65rem",
+              padding: "1px 5px",
+              borderRadius: "4px",
+              border: "1px solid #E2E8F0",
+              background: "#FFFFFF",
+              color: "#94A3B8",
+              fontFamily: "var(--font-mono)",
+            }}
+          >
+            Ctrl K
+          </kbd>
+        </button>
 
       {/* Middle View Controls */}
       <div

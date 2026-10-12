@@ -14,6 +14,7 @@ import CreateBoardModal from "./components/CreateBoardModal";
 import CreateWorkspaceModal from "./components/CreateWorkspaceModal";
 import WorkspaceSettings from "./components/WorkspaceSettings";
 import Toast from "./components/Toast";
+import SearchModal from "./components/SearchModal";
 import {
   mockUsers,
   mockWorkspaces,
@@ -81,6 +82,20 @@ export default function App() {
   });
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+
+  // Global Ctrl + K / Cmd + K shortcut listener
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setIsSearchModalOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, []);
 
   // Modals & Views
   const [activeView, setActiveView] = useState("kanban"); // 'kanban' | 'user_panel' | 'team' | 'models' | 'settings'
@@ -983,6 +998,7 @@ export default function App() {
         isSocketConnected={isSocketConnected}
         notifications={notifications}
         onClearNotifications={clearNotifications}
+        onOpenSearch={() => setIsSearchModalOpen(true)}
       />
 
       {/* Main Workspace Layout */}
@@ -1006,6 +1022,13 @@ export default function App() {
           activeView={activeView}
           onSelectView={(view) => setActiveView(view)}
         />
+
+        <SearchModal
+        isOpen={isSearchModalOpen}
+        onClose={() => setIsSearchModalOpen(false)}
+        cards={allCards}
+        onSelectCard={(cardId) => setActiveCardId(cardId)}
+      />
 
         {/* View Switcher */}
         {activeView === "settings" ? (
