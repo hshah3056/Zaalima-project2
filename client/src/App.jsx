@@ -1240,6 +1240,9 @@ export default function App() {
           users={users}
           currentUser={currentUser}
           onUpdateCard={handleUpdateCard}
+          onDeleteCard={handleDeleteCard}
+          boardLists={boardDetails?.lists || []}
+          boardName={boardDetails?.name || 'Sprint Board'}
           socket={socket}
         />
       )}
