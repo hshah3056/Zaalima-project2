@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Zap,
   Layers,
@@ -6,9 +6,7 @@ import {
   Plus,
   Search,
   UserCheck,
-  Sparkles,
   RefreshCw,
-  Code2,
   User,
   Users,
   ChevronDown,
@@ -41,6 +39,22 @@ export default function Header({
 }) {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const profileMenuRef = useRef(null);
+  const notifMenuRef = useRef(null);
+
+  // Close menus on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
+        setIsProfileMenuOpen(false);
+      }
+      if (notifMenuRef.current && !notifMenuRef.current.contains(e.target)) {
+        setIsNotificationsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   return (
     <header
@@ -50,86 +64,91 @@ export default function Header({
         borderTop: 0,
         borderLeft: 0,
         borderRight: 0,
-        padding: "0.75rem 1.5rem",
+        padding: "0.5rem 1rem",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        zIndex: 30,
+        gap: "0.5rem",
+        zIndex: 50,
         background: "#FFFFFF",
         borderBottom: "1px solid #E2E8F0",
-        boxShadow: "var(--shadow-sm)",
+        boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.04)",
+        width: "100%",
+        boxSizing: "border-box",
+        overflowX: "hidden",
       }}
     >
-      {/* Brand & Workspace Switcher */}
-      <div style={{ display: "flex", alignItems: "center", gap: "1.25rem" }}>
+      {/* LEFT SECTION: Logo, Workspace Dropdown & Search Button */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.6rem",
+          flexShrink: 0,
+          minWidth: 0,
+        }}
+      >
+        {/* Brand */}
         <div
           onClick={() => setActiveView("kanban")}
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "0.6rem",
+            gap: "0.5rem",
             cursor: "pointer",
+            flexShrink: 0,
           }}
         >
           <div
             style={{
               background: "linear-gradient(135deg, #4F46E5 0%, #EC4899 100%)",
-              width: "36px",
-              height: "36px",
-              borderRadius: "10px",
+              width: "32px",
+              height: "32px",
+              borderRadius: "8px",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              boxShadow: "0 4px 12px rgba(79, 70, 229, 0.25)",
+              boxShadow: "0 2px 8px rgba(79, 70, 229, 0.25)",
+              flexShrink: 0,
             }}
           >
-            <Zap size={20} color="#FFFFFF" />
+            <Zap size={17} color="#FFFFFF" />
           </div>
-          <div>
+          <div style={{ display: "flex", flexDirection: "column" }}>
             <h1
               style={{
-                fontSize: "1.15rem",
+                fontSize: "1.05rem",
                 fontWeight: 800,
                 color: "#0F172A",
                 letterSpacing: "-0.02em",
+                margin: 0,
+                lineHeight: 1,
               }}
             >
               PULSE<span style={{ color: "#4F46E5" }}>WORK</span>
             </h1>
             <span
               style={{
-                fontSize: "0.65rem",
+                fontSize: "0.58rem",
                 textTransform: "uppercase",
-                letterSpacing: "0.05em",
+                letterSpacing: "0.04em",
                 color: "#059669",
                 fontWeight: 700,
                 display: "flex",
                 alignItems: "center",
-                gap: "4px",
+                gap: "3px",
+                marginTop: "2px",
               }}
             >
-              <span className="status-online-dot"></span> Socket.io Live{" "}
-              {activeBoardPeers?.length > 0
-                ? `(${activeBoardPeers.length + 1} online)`
-                : "(Online)"}
+              <span className="status-online-dot"></span> Socket Live
             </span>
           </div>
         </div>
 
-        <div style={{ height: "24px", width: "1px", background: "#E2E8F0" }} />
+        <div style={{ height: "20px", width: "1px", background: "#E2E8F0" }} />
 
-        {/* Workspace Dropdown Selector */}
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <span
-            style={{
-              fontSize: "0.75rem",
-              color: "#64748B",
-              textTransform: "uppercase",
-              fontWeight: 600,
-            }}
-          >
-            Workspace:
-          </span>
+        {/* Workspace Dropdown */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
           <select
             value={currentWorkspace?._id || ""}
             onChange={(e) => onSelectWorkspace(e.target.value)}
@@ -137,173 +156,187 @@ export default function Header({
               background: "#F8FAFC",
               color: "#0F172A",
               border: "1px solid #CBD5E1",
-              borderRadius: "8px",
-              padding: "0.4rem 0.8rem",
-              fontSize: "0.85rem",
+              borderRadius: "6px",
+              padding: "0.3rem 0.5rem",
+              fontSize: "0.78rem",
               fontWeight: 600,
               cursor: "pointer",
               outline: "none",
+              maxWidth: "150px",
             }}
           >
             {workspaces.map((ws) => (
               <option key={ws._id} value={ws._id}>
-                {ws.name} ({ws.boards?.length || 0} boards)
+                {ws.name} ({ws.boards?.length || 0})
               </option>
             ))}
           </select>
         </div>
-      </div>
 
-      {/* Quick Search Shortcut Button */}
+        {/* Search tasks trigger */}
         <button
           onClick={onOpenSearch}
           title="Search tasks (Ctrl + K)"
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "0.5rem",
+            gap: "0.4rem",
             background: "#F8FAFC",
             border: "1px solid #CBD5E1",
-            borderRadius: "8px",
-            padding: "0.4rem 0.75rem",
+            borderRadius: "6px",
+            padding: "0.3rem 0.55rem",
             color: "#64748B",
-            fontSize: "0.8rem",
+            fontSize: "0.75rem",
             cursor: "pointer",
             outline: "none",
+            transition: "all 0.15s ease",
           }}
         >
-          <Search size={14} />
-          <span>Search tasks...</span>
+          <Search size={13} color="#64748B" />
+          <span style={{ display: "inline-block" }}>Search...</span>
           <kbd
             style={{
-              fontSize: "0.65rem",
-              padding: "1px 5px",
-              borderRadius: "4px",
-              border: "1px solid #E2E8F0",
+              fontSize: "0.6rem",
+              padding: "1px 4px",
+              borderRadius: "3px",
+              border: "1px solid #CBD5E1",
               background: "#FFFFFF",
-              color: "#94A3B8",
+              color: "#64748B",
               fontFamily: "var(--font-mono)",
+              fontWeight: 700,
             }}
           >
             Ctrl K
           </kbd>
         </button>
+      </div>
 
-      {/* Middle View Controls */}
+      {/* CENTER SECTION: View Navigation Switcher */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          gap: "0.35rem",
+          gap: "0.2rem",
           background: "#F1F5F9",
-          padding: "0.25rem",
-          borderRadius: "10px",
+          padding: "0.2rem",
+          borderRadius: "8px",
           border: "1px solid #E2E8F0",
+          flexShrink: 1,
+          minWidth: 0,
         }}
       >
         <button
           onClick={() => setActiveView("kanban")}
+          title="Board Canvas"
           style={{
             background: activeView === "kanban" ? "#4F46E5" : "transparent",
             color: activeView === "kanban" ? "#FFFFFF" : "#475569",
             border: "none",
-            padding: "0.4rem 0.9rem",
-            borderRadius: "7px",
-            fontSize: "0.85rem",
+            padding: "0.3rem 0.6rem",
+            borderRadius: "5px",
+            fontSize: "0.76rem",
             fontWeight: 700,
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
-            gap: "0.4rem",
+            gap: "0.3rem",
+            whiteSpace: "nowrap",
             transition: "all 0.15s",
           }}
         >
-          <Layers size={15} /> Board Canvas
+          <Layers size={13} />
+          <span>Canvas</span>
         </button>
 
         <button
           onClick={() => setActiveView("team")}
+          title="Work with Team"
           style={{
             background: activeView === "team" ? "#4F46E5" : "transparent",
             color: activeView === "team" ? "#FFFFFF" : "#475569",
             border: "none",
-            padding: "0.4rem 0.9rem",
-            borderRadius: "7px",
-            fontSize: "0.85rem",
+            padding: "0.3rem 0.6rem",
+            borderRadius: "5px",
+            fontSize: "0.76rem",
             fontWeight: 700,
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
-            gap: "0.4rem",
+            gap: "0.3rem",
+            whiteSpace: "nowrap",
             transition: "all 0.15s",
           }}
         >
           <Users
-            size={15}
+            size={13}
             color={activeView === "team" ? "#FFFFFF" : "#059669"}
-          />{" "}
-          Work with Team
+          />
+          <span>Team</span>
         </button>
 
         <button
           onClick={() => setActiveView("user_panel")}
+          title="My Tasks"
           style={{
             background: activeView === "user_panel" ? "#4F46E5" : "transparent",
             color: activeView === "user_panel" ? "#FFFFFF" : "#475569",
             border: "none",
-            padding: "0.4rem 0.9rem",
-            borderRadius: "7px",
-            fontSize: "0.85rem",
+            padding: "0.3rem 0.6rem",
+            borderRadius: "5px",
+            fontSize: "0.76rem",
             fontWeight: 700,
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
-            gap: "0.4rem",
+            gap: "0.3rem",
+            whiteSpace: "nowrap",
             transition: "all 0.15s",
           }}
         >
           <User
-            size={15}
+            size={13}
             color={activeView === "user_panel" ? "#FFFFFF" : "#4F46E5"}
-          />{" "}
-          My Tasks ({currentUser?.name?.split(" ")[0] || "User"})
+          />
+          <span>My Tasks</span>
         </button>
 
         <button
           onClick={onOpenDataModelsModal}
+          title="ERD Models"
           style={{
             background: activeView === "models" ? "#4F46E5" : "transparent",
             color: activeView === "models" ? "#FFFFFF" : "#475569",
             border: "none",
-            padding: "0.4rem 0.9rem",
-            borderRadius: "7px",
-            fontSize: "0.85rem",
+            padding: "0.3rem 0.6rem",
+            borderRadius: "5px",
+            fontSize: "0.76rem",
             fontWeight: 700,
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
-            gap: "0.4rem",
+            gap: "0.3rem",
+            whiteSpace: "nowrap",
             transition: "all 0.15s",
           }}
         >
           <Database
-            size={15}
+            size={13}
             color={activeView === "models" ? "#FFFFFF" : "#0891B2"}
-          />{" "}
-          ERD Models
+          />
+          <span>Models</span>
         </button>
       </div>
 
-      {/* Right Side Controls & Profile */}
+      {/* RIGHT SECTION: Live Status, Notifications, User Profile & Actions */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          gap: "0.75rem",
-          position: "relative",
+          gap: "0.45rem",
+          flexShrink: 0,
         }}
       >
-        {/* Live Socket Status Badge */}
+        {/* Live Socket Status Pill */}
         <div
           title={
             isSocketConnected
@@ -313,22 +346,22 @@ export default function Header({
           style={{
             display: "inline-flex",
             alignItems: "center",
-            gap: "6px",
-            fontSize: "0.75rem",
+            gap: "4px",
+            fontSize: "0.7rem",
             fontWeight: 700,
-            padding: "4px 10px",
+            padding: "2px 7px",
             borderRadius: "9999px",
             border: `1px solid ${isSocketConnected ? "#BBF7D0" : "#FECACA"}`,
             background: isSocketConnected ? "#F0FDF4" : "#FEF2F2",
             color: isSocketConnected ? "#15803D" : "#B91C1C",
-            transition: "all 0.2s ease",
             userSelect: "none",
+            flexShrink: 0,
           }}
         >
           <span
             style={{
-              width: "7px",
-              height: "7px",
+              width: "6px",
+              height: "6px",
               borderRadius: "50%",
               backgroundColor: isSocketConnected ? "#22C55E" : "#EF4444",
               boxShadow: isSocketConnected
@@ -339,8 +372,8 @@ export default function Header({
           <span>{isSocketConnected ? "Live" : "Offline"}</span>
         </div>
 
-        {/* In-App Notification Center */}
-        <div style={{ position: "relative" }}>
+        {/* Notifications Icon Button */}
+        <div ref={notifMenuRef} style={{ position: "relative" }}>
           <button
             onClick={() => {
               setIsNotificationsOpen(!isNotificationsOpen);
@@ -352,15 +385,15 @@ export default function Header({
               background: isNotificationsOpen ? "#EEF2FF" : "#F8FAFC",
               border: isNotificationsOpen ? "1px solid #4F46E5" : "1px solid #CBD5E1",
               color: isNotificationsOpen ? "#4F46E5" : "#64748B",
-              padding: "0.45rem",
-              borderRadius: "8px",
+              padding: "0.35rem",
+              borderRadius: "6px",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
             }}
           >
-            <Bell size={16} />
+            <Bell size={15} />
             {notifications.length > 0 && (
               <span
                 style={{
@@ -369,10 +402,10 @@ export default function Header({
                   right: "-4px",
                   background: "#EF4444",
                   color: "#FFFFFF",
-                  fontSize: "0.62rem",
+                  fontSize: "0.58rem",
                   fontWeight: 800,
-                  width: "16px",
-                  height: "16px",
+                  width: "14px",
+                  height: "14px",
                   borderRadius: "50%",
                   display: "flex",
                   alignItems: "center",
@@ -392,18 +425,18 @@ export default function Header({
               style={{
                 position: "absolute",
                 right: 0,
-                top: "42px",
-                width: "320px",
+                top: "36px",
+                width: "280px",
                 background: "#FFFFFF",
                 border: "1px solid #E2E8F0",
-                borderRadius: "12px",
-                boxShadow: "var(--shadow-xl)",
-                padding: "0.75rem",
+                borderRadius: "10px",
+                boxShadow: "0 10px 25px rgba(0, 0, 0, 0.15)",
+                padding: "0.65rem",
                 zIndex: 100,
                 display: "flex",
                 flexDirection: "column",
-                gap: "0.5rem",
-                maxHeight: "380px",
+                gap: "0.4rem",
+                maxHeight: "340px",
               }}
             >
               <div
@@ -411,13 +444,13 @@ export default function Header({
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  paddingBottom: "0.5rem",
+                  paddingBottom: "0.4rem",
                   borderBottom: "1px solid #F1F5F9",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <Bell size={14} color="#4F46E5" />
-                  <span style={{ fontSize: "0.85rem", fontWeight: 800, color: "#0F172A" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                  <Bell size={13} color="#4F46E5" />
+                  <span style={{ fontSize: "0.8rem", fontWeight: 800, color: "#0F172A" }}>
                     Notifications ({notifications.length})
                   </span>
                 </div>
@@ -428,7 +461,7 @@ export default function Header({
                       background: "transparent",
                       border: "none",
                       color: "#4F46E5",
-                      fontSize: "0.72rem",
+                      fontSize: "0.68rem",
                       fontWeight: 700,
                       cursor: "pointer",
                       display: "flex",
@@ -436,7 +469,7 @@ export default function Header({
                       gap: "3px",
                     }}
                   >
-                    <CheckCheck size={12} /> Clear all
+                    <CheckCheck size={11} /> Clear
                   </button>
                 )}
               </div>
@@ -446,17 +479,17 @@ export default function Header({
                   overflowY: "auto",
                   display: "flex",
                   flexDirection: "column",
-                  gap: "0.4rem",
-                  maxHeight: "280px",
+                  gap: "0.35rem",
+                  maxHeight: "240px",
                 }}
               >
                 {notifications.length === 0 ? (
                   <div
                     style={{
                       textAlign: "center",
-                      padding: "1.5rem 0",
+                      padding: "1.2rem 0",
                       color: "#94A3B8",
-                      fontSize: "0.78rem",
+                      fontSize: "0.72rem",
                     }}
                   >
                     No unread notifications
@@ -466,8 +499,8 @@ export default function Header({
                     <div
                       key={notif.id}
                       style={{
-                        padding: "0.5rem",
-                        borderRadius: "8px",
+                        padding: "0.45rem",
+                        borderRadius: "6px",
                         background: "#F8FAFC",
                         border: "1px solid #E2E8F0",
                         display: "flex",
@@ -475,15 +508,15 @@ export default function Header({
                         gap: "2px",
                       }}
                     >
-                      <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#0F172A" }}>
+                      <div style={{ fontSize: "0.73rem", fontWeight: 700, color: "#0F172A" }}>
                         {notif.title}
                       </div>
-                      <div style={{ fontSize: "0.72rem", color: "#475569" }}>
+                      <div style={{ fontSize: "0.68rem", color: "#475569" }}>
                         {notif.message}
                       </div>
                       <span
                         style={{
-                          fontSize: "0.62rem",
+                          fontSize: "0.58rem",
                           color: "#94A3B8",
                           marginTop: "2px",
                           fontFamily: "var(--font-mono)",
@@ -499,8 +532,8 @@ export default function Header({
           )}
         </div>
 
-        {/* User Profile Pill */}
-        <div style={{ position: "relative" }}>
+        {/* User Profile Pill & Dropdown */}
+        <div ref={profileMenuRef} style={{ position: "relative" }}>
           <div
             onClick={() => {
               if (!currentUser) {
@@ -510,31 +543,29 @@ export default function Header({
                 setIsNotificationsOpen(false);
               }
             }}
-            title={
-              currentUser ? "User Profile & Session Controls" : "Click to Login"
-            }
+            title={currentUser ? "User Profile Controls" : "Click to Login"}
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "0.6rem",
+              gap: "0.4rem",
               background: "#F8FAFC",
               border: currentUser ? "1px solid #C7D2FE" : "1px solid #CBD5E1",
-              padding: "0.35rem 0.75rem",
-              borderRadius: "20px",
+              padding: "0.25rem 0.55rem",
+              borderRadius: "16px",
               cursor: "pointer",
               transition: "all 0.15s",
-              boxShadow: "var(--shadow-sm)",
+              maxWidth: "140px",
             }}
           >
             {currentUser ? (
               <>
-                <div style={{ position: "relative" }}>
+                <div style={{ position: "relative", flexShrink: 0 }}>
                   <img
                     src={currentUser.avatar}
                     alt={currentUser.name}
                     style={{
-                      width: "26px",
-                      height: "26px",
+                      width: "22px",
+                      height: "22px",
                       borderRadius: "50%",
                       objectFit: "cover",
                     }}
@@ -544,102 +575,124 @@ export default function Header({
                       position: "absolute",
                       bottom: 0,
                       right: 0,
-                      width: "8px",
-                      height: "8px",
+                      width: "6px",
+                      height: "6px",
                       borderRadius: "50%",
                       background: "#059669",
                       border: "1px solid #FFF",
                     }}
                   />
                 </div>
-                <div style={{ display: "flex", flexDirection: "column" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    minWidth: 0,
+                    overflow: "hidden",
+                  }}
+                >
                   <span
                     style={{
-                      fontSize: "0.8rem",
+                      fontSize: "0.75rem",
                       fontWeight: 700,
                       color: "#0F172A",
                       lineHeight: "1.1",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
                     }}
                   >
                     {currentUser.name}
                   </span>
                   <span
                     style={{
-                      fontSize: "0.65rem",
+                      fontSize: "0.6rem",
                       color: "#4F46E5",
                       fontWeight: 600,
                       textTransform: "capitalize",
+                      lineHeight: "1",
                     }}
                   >
                     {currentUser.role}
                   </span>
                 </div>
-                <ChevronDown size={14} color="#64748B" />
+                <ChevronDown size={12} color="#64748B" style={{ flexShrink: 0 }} />
               </>
             ) : (
               <span
                 style={{
-                  fontSize: "0.8rem",
+                  fontSize: "0.75rem",
                   fontWeight: 700,
                   color: "#4F46E5",
                   display: "flex",
                   alignItems: "center",
-                  gap: "4px",
+                  gap: "3px",
                 }}
               >
-                <UserCheck size={16} /> Sign In / Switch User
+                <UserCheck size={14} /> Sign In
               </span>
             )}
           </div>
 
-          {/* Profile Dropdown Menu */}
+          {/* User Menu Dropdown (Guaranteed not to cut off screen) */}
           {isProfileMenuOpen && currentUser && (
             <div
               className="glass-panel animate-modal"
               style={{
                 position: "absolute",
                 right: 0,
-                top: "42px",
-                width: "240px",
+                top: "36px",
+                width: "210px",
                 background: "#FFFFFF",
                 border: "1px solid #E2E8F0",
-                borderRadius: "12px",
-                boxShadow: "var(--shadow-xl)",
-                padding: "0.75rem",
+                borderRadius: "10px",
+                boxShadow: "0 10px 25px rgba(0, 0, 0, 0.15)",
+                padding: "0.55rem",
                 zIndex: 100,
                 display: "flex",
                 flexDirection: "column",
-                gap: "0.5rem",
+                gap: "0.35rem",
               }}
             >
               <div
-                style={{ padding: "0.5rem", borderBottom: "1px solid #F1F5F9" }}
+                style={{
+                  padding: "0.35rem 0.45rem 0.45rem",
+                  borderBottom: "1px solid #F1F5F9",
+                }}
               >
                 <div
                   style={{
-                    fontSize: "0.85rem",
+                    fontSize: "0.8rem",
                     fontWeight: 800,
                     color: "#0F172A",
                   }}
                 >
                   {currentUser.name}
                 </div>
-                <div style={{ fontSize: "0.75rem", color: "#64748B" }}>
+                <div
+                  style={{
+                    fontSize: "0.68rem",
+                    color: "#64748B",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
                   {currentUser.email}
                 </div>
                 <span
                   style={{
-                    fontSize: "0.68rem",
+                    fontSize: "0.6rem",
                     color: "#059669",
                     background: "#ECFDF5",
-                    padding: "2px 6px",
+                    padding: "1px 5px",
                     borderRadius: "4px",
                     fontWeight: 700,
                     display: "inline-block",
-                    marginTop: "4px",
+                    marginTop: "3px",
                   }}
                 >
-                  Status: Online
+                  Online
                 </span>
               </div>
 
@@ -651,9 +704,9 @@ export default function Header({
                 style={{
                   background: "transparent",
                   border: "none",
-                  padding: "0.5rem",
-                  borderRadius: "6px",
-                  fontSize: "0.82rem",
+                  padding: "0.4rem",
+                  borderRadius: "5px",
+                  fontSize: "0.75rem",
                   fontWeight: 600,
                   color: "#334155",
                   cursor: "pointer",
@@ -663,7 +716,7 @@ export default function Header({
                   textAlign: "left",
                 }}
               >
-                <Users size={15} color="#4F46E5" /> Work with Team Hub
+                <Users size={13} color="#4F46E5" /> Work with Team
               </button>
 
               <button
@@ -674,9 +727,9 @@ export default function Header({
                 style={{
                   background: "transparent",
                   border: "none",
-                  padding: "0.5rem",
-                  borderRadius: "6px",
-                  fontSize: "0.82rem",
+                  padding: "0.4rem",
+                  borderRadius: "5px",
+                  fontSize: "0.75rem",
                   fontWeight: 600,
                   color: "#334155",
                   cursor: "pointer",
@@ -686,7 +739,7 @@ export default function Header({
                   textAlign: "left",
                 }}
               >
-                <UserPlus size={15} color="#059669" /> Invite Team Member
+                <UserPlus size={13} color="#059669" /> Invite Team Member
               </button>
 
               <button
@@ -697,9 +750,9 @@ export default function Header({
                 style={{
                   background: "transparent",
                   border: "none",
-                  padding: "0.5rem",
-                  borderRadius: "6px",
-                  fontSize: "0.82rem",
+                  padding: "0.4rem",
+                  borderRadius: "5px",
+                  fontSize: "0.75rem",
                   fontWeight: 600,
                   color: "#334155",
                   cursor: "pointer",
@@ -709,7 +762,7 @@ export default function Header({
                   textAlign: "left",
                 }}
               >
-                <UserCheck size={15} color="#0891B2" /> Switch Account / User
+                <UserCheck size={13} color="#0891B2" /> Switch Account
               </button>
 
               <div
@@ -728,24 +781,25 @@ export default function Header({
                 style={{
                   background: "#FEF2F2",
                   border: "1px solid #FCA5A5",
-                  padding: "0.5rem",
-                  borderRadius: "8px",
-                  fontSize: "0.82rem",
+                  padding: "0.4rem",
+                  borderRadius: "6px",
+                  fontSize: "0.75rem",
                   fontWeight: 700,
                   color: "#DC2626",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  gap: "6px",
+                  gap: "5px",
                 }}
               >
-                <LogOut size={15} /> Sign Out / Logout
+                <LogOut size={13} /> Sign Out
               </button>
             </div>
           )}
         </div>
 
+        {/* Reset Data Button */}
         <button
           onClick={onResetData}
           title="Reset Seed Data"
@@ -753,32 +807,36 @@ export default function Header({
             background: "#F1F5F9",
             border: "1px solid #CBD5E1",
             color: "#64748B",
-            padding: "0.45rem",
-            borderRadius: "8px",
+            padding: "0.35rem",
+            borderRadius: "6px",
             cursor: "pointer",
+            flexShrink: 0,
           }}
         >
-          <RefreshCw size={16} />
+          <RefreshCw size={13} />
         </button>
 
+        {/* Create Card Primary Button */}
         <button
           onClick={onOpenCreateTask}
           style={{
             background: "#4F46E5",
             color: "#FFFFFF",
             border: "none",
-            padding: "0.5rem 1rem",
-            borderRadius: "8px",
-            fontSize: "0.85rem",
+            padding: "0.38rem 0.75rem",
+            borderRadius: "6px",
+            fontSize: "0.76rem",
             fontWeight: 700,
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
-            gap: "0.4rem",
-            boxShadow: "0 4px 12px rgba(79, 70, 229, 0.25)",
+            gap: "0.3rem",
+            boxShadow: "0 2px 6px rgba(79, 70, 229, 0.25)",
+            whiteSpace: "nowrap",
+            flexShrink: 0,
           }}
         >
-          <Plus size={16} /> Create Card
+          <Plus size={14} /> Card
         </button>
       </div>
     </header>
