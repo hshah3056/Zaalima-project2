@@ -90,6 +90,18 @@ export default function App() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
+  // Global Ctrl + K / Cmd + K shortcut listener
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setIsSearchModalOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, []);
+
   // Modals & Views
   const [activeView, setActiveView] = useState("kanban"); // 'kanban' | 'user_panel' | 'team' | 'models' | 'settings'
   const [isDataModelsModalOpen, setIsDataModelsModalOpen] = useState(false);
@@ -1120,6 +1132,7 @@ export default function App() {
           if (notif.card) handleSelectCardFromSearchOrNotif(notif.card, notif.board);
         }}
         onClearNotifications={clearNotifications}
+        onOpenSearch={() => setIsSearchModalOpen(true)}
       />
 
       {/* Main Workspace Layout */}
@@ -1277,6 +1290,7 @@ export default function App() {
         workspaces={workspaces}
         boards={workspaceBoards}
         users={users}
+        cards={allCards}
       />
 
       {/* Toast Notification Container */}

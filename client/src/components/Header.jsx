@@ -45,6 +45,7 @@ export default function Header({
   onDeleteNotification,
   onNotificationClick,
   onClearNotifications = () => {},
+  onOpenSearch = () => {},
 }) {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isNotificationMenuOpen, setIsNotificationMenuOpen] = useState(false);
@@ -324,7 +325,7 @@ export default function Header({
 
         {/* Task Search Engine Trigger Button */}
         <button
-          onClick={onOpenSearchModal}
+          onClick={onOpenSearchModal || onOpenSearch}
           title="Search Tasks (Cmd+K or Ctrl+K)"
           style={{
             display: "flex",
@@ -354,7 +355,7 @@ export default function Header({
               fontWeight: 700,
             }}
           >
-            ⌘K
+            ⌘K / Ctrl+K
           </kbd>
         </button>
 

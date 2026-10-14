@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search, 
   X, 
@@ -8,11 +8,12 @@ import {
   Clock, 
   User, 
   Tag, 
-  ArrowRight,
-  AlertCircle,
-  SlidersHorizontal,
-  Calendar,
-  Sparkles
+  ArrowRight, 
+  AlertCircle, 
+  SlidersHorizontal, 
+  Calendar, 
+  Sparkles,
+  Command
 } from 'lucide-react';
 
 const API_BASE = "http://localhost:5001/api";
@@ -23,9 +24,10 @@ export default function SearchModal({
   onSelectCard, 
   workspaces = [], 
   boards = [], 
-  users = [] 
+  users = [],
+  cards = []
 }) {
-  if (!isOpen) return null;
+  const inputRef = useRef(null);
 
   const [query, setQuery] = useState('');
   const [selectedWorkspace, setSelectedWorkspace] = useState('');
@@ -38,20 +40,29 @@ export default function SearchModal({
   const [searchResults, setSearchResults] = useState([]);
   const [facets, setFacets] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
+  // Autofocus input on open
+  useEffect(() => {
+    if (isOpen) {
+      setQuery('');
+      setTimeout(() => inputRef.current?.focus(), 60);
+    }
+  }, [isOpen]);
+
+  // Global ESC key to close
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' && isOpen) onClose();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [isOpen, onClose]);
 
+  // Fetch from backend or fallback to cards in memory
   useEffect(() => {
-    fetchSearchResults();
-  }, [query, selectedWorkspace, selectedBoard, selectedPriority, selectedStatus, selectedDueDate, sortBy]);
+    if (!isOpen) return;
 
-  const fetchSearchResults = () => {
     setIsLoading(true);
     const params = new URLSearchParams();
     if (query.trim()) params.append('q', query.trim());
@@ -63,16 +74,46 @@ export default function SearchModal({
     if (sortBy) params.append('sortBy', sortBy);
 
     fetch(`${API_BASE}/search?${params.toString()}`)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error('Search endpoint non-ok');
+        return res.json();
+      })
       .then((res) => {
         if (res.status === 'success' && res.data) {
           setSearchResults(res.data.cards || []);
           setFacets(res.data.facets || null);
+        } else {
+          fallbackLocalFilter();
         }
       })
-      .catch((err) => console.warn('Search engine fetch failed:', err))
+      .catch(() => {
+        fallbackLocalFilter();
+      })
       .finally(() => setIsLoading(false));
+  }, [isOpen, query, selectedWorkspace, selectedBoard, selectedPriority, selectedStatus, selectedDueDate, sortBy]);
+
+  const fallbackLocalFilter = () => {
+    const q = query.trim().toLowerCase();
+    let filtered = Array.isArray(cards) ? [...cards] : [];
+
+    if (q) {
+      filtered = filtered.filter((c) => {
+        const matchesTitle = c.title?.toLowerCase().includes(q);
+        const matchesKey = c.key?.toLowerCase().includes(q);
+        const matchesDesc = c.description?.toLowerCase().includes(q);
+        return matchesTitle || matchesKey || matchesDesc;
+      });
+    }
+
+    if (selectedPriority !== 'all') {
+      filtered = filtered.filter((c) => c.priority === selectedPriority);
+    }
+
+    setSearchResults(filtered);
+    setFacets(null);
   };
+
+  if (!isOpen) return null;
 
   const getPriorityBadgeClass = (priority) => {
     switch (priority) {
@@ -80,6 +121,15 @@ export default function SearchModal({
       case 'high': return 'badge-high';
       case 'medium': return 'badge-medium';
       default: return 'badge-low';
+    }
+  };
+
+  const getPriorityColor = (p) => {
+    switch (p) {
+      case "urgent": return "#DC2626";
+      case "high": return "#EA580C";
+      case "medium": return "#4F46E5";
+      default: return "#64748B";
     }
   };
 
@@ -93,259 +143,319 @@ export default function SearchModal({
     setSortBy('updatedAt');
   };
 
+  const handleCardClick = (card) => {
+    if (onSelectCard) {
+      onSelectCard(card._id, card.board || card.boardId);
+    }
+    onClose();
+  };
+
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: 'rgba(15, 23, 42, 0.5)',
-      backdropFilter: 'blur(8px)',
-      zIndex: 200,
-      display: 'flex',
-      alignItems: 'flex-start',
-      justifyContent: 'center',
-      padding: '4rem 1.5rem 2rem'
-    }}>
+    <div 
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(15, 23, 42, 0.45)',
+        backdropFilter: 'blur(6px)',
+        zIndex: 9999,
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+        padding: '5rem 1.5rem 2rem'
+      }}
+    >
       <div 
+        onClick={(e) => e.stopPropagation()}
         className="glass-panel animate-modal"
         style={{
-          width: '840px',
+          width: '780px',
           maxWidth: '94vw',
           maxHeight: '85vh',
           background: '#FFFFFF',
-          borderRadius: '16px',
+          borderRadius: '14px',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: 'var(--shadow-xl)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+          border: '1px solid #E2E8F0',
           overflow: 'hidden'
         }}
       >
         {/* Search Header Bar */}
         <div style={{
-          padding: '1rem 1.25rem',
-          borderBottom: '1px solid #E2E8F0',
+          padding: '0.85rem 1.25rem',
+          borderBottom: '1px solid #F1F5F9',
           display: 'flex',
           alignItems: 'center',
           gap: '0.75rem',
-          background: '#F8FAFC'
+          background: '#FFFFFF'
         }}>
           <Search size={20} color="#4F46E5" />
           <input 
+            ref={inputRef}
             type="text"
-            placeholder="Search tasks, descriptions, subtasks, keys (e.g. PULSE-101)..."
+            placeholder="Search tasks by title, key (e.g. PULSE-101), or description..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            autoFocus
             style={{
               flex: 1,
               border: 'none',
               background: 'transparent',
-              fontSize: '1rem',
-              fontWeight: 600,
+              fontSize: '0.98rem',
+              fontWeight: 500,
               color: '#0F172A',
               outline: 'none'
             }}
           />
           {query && (
-            <X 
-              size={18} 
+            <button
               onClick={() => setQuery('')}
-              style={{ cursor: 'pointer', color: '#94A3B8' }}
-            />
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '2px',
+                color: '#94A3B8'
+              }}
+            >
+              <X size={18} />
+            </button>
           )}
-          <button 
-            onClick={onClose}
+
+          <button
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            title="Toggle advanced filters"
             style={{
-              background: '#F1F5F9',
+              background: showAdvancedFilters ? '#EEF2FF' : '#F8FAFC',
               border: '1px solid #CBD5E1',
               borderRadius: '6px',
-              padding: '2px 8px',
+              padding: '3px 8px',
               fontSize: '0.75rem',
-              fontWeight: 700,
+              fontWeight: 600,
+              color: showAdvancedFilters ? '#4F46E5' : '#64748B',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            <SlidersHorizontal size={13} />
+            <span>Filters</span>
+          </button>
+
+          <kbd
+            style={{
+              fontSize: '0.65rem',
+              padding: '2px 6px',
+              borderRadius: '4px',
+              border: '1px solid #CBD5E1',
+              background: '#F8FAFC',
               color: '#64748B',
-              cursor: 'pointer'
+              fontFamily: 'var(--font-mono)',
+              fontWeight: 600,
             }}
           >
             ESC
-          </button>
+          </kbd>
         </div>
 
-        {/* Multi-Attribute Filter Bar */}
-        <div style={{
-          padding: '0.75rem 1.25rem',
-          borderBottom: '1px solid #F1F5F9',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.6rem',
-          flexWrap: 'wrap',
-          background: '#FFFFFF'
-        }}>
-          <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 800, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <SlidersHorizontal size={13} color="#4F46E5" /> Filters:
-          </span>
+        {/* Collapsible Multi-Attribute Filter Bar */}
+        {showAdvancedFilters && (
+          <div style={{
+            padding: '0.65rem 1.25rem',
+            borderBottom: '1px solid #F1F5F9',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            flexWrap: 'wrap',
+            background: '#F8FAFC'
+          }}>
+            {workspaces.length > 0 && (
+              <select 
+                value={selectedWorkspace}
+                onChange={(e) => setSelectedWorkspace(e.target.value)}
+                style={{ fontSize: '0.75rem', padding: '3px 8px', border: '1px solid #CBD5E1', borderRadius: '6px', outline: 'none', background: '#FFFFFF' }}
+              >
+                <option value="">All Workspaces</option>
+                {workspaces.map(w => <option key={w._id} value={w._id}>{w.name}</option>)}
+              </select>
+            )}
 
-          {/* Workspace Select */}
-          <select 
-            value={selectedWorkspace}
-            onChange={(e) => setSelectedWorkspace(e.target.value)}
-            style={{ fontSize: '0.75rem', padding: '3px 8px', border: '1px solid #CBD5E1', borderRadius: '6px', outline: 'none', background: '#F8FAFC' }}
-          >
-            <option value="">All Workspaces</option>
-            {workspaces.map(w => <option key={w._id} value={w._id}>{w.name}</option>)}
-          </select>
+            {boards.length > 0 && (
+              <select 
+                value={selectedBoard}
+                onChange={(e) => setSelectedBoard(e.target.value)}
+                style={{ fontSize: '0.75rem', padding: '3px 8px', border: '1px solid #CBD5E1', borderRadius: '6px', outline: 'none', background: '#FFFFFF' }}
+              >
+                <option value="">All Boards</option>
+                {boards.map(b => <option key={b._id} value={b._id}>{b.name}</option>)}
+              </select>
+            )}
 
-          {/* Board Select */}
-          <select 
-            value={selectedBoard}
-            onChange={(e) => setSelectedBoard(e.target.value)}
-            style={{ fontSize: '0.75rem', padding: '3px 8px', border: '1px solid #CBD5E1', borderRadius: '6px', outline: 'none', background: '#F8FAFC' }}
-          >
-            <option value="">All Boards</option>
-            {boards.map(b => <option key={b._id} value={b._id}>{b.name}</option>)}
-          </select>
+            <select 
+              value={selectedPriority}
+              onChange={(e) => setSelectedPriority(e.target.value)}
+              style={{ fontSize: '0.75rem', padding: '3px 8px', border: '1px solid #CBD5E1', borderRadius: '6px', outline: 'none', background: '#FFFFFF' }}
+            >
+              <option value="all">Priority: All</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="urgent">Urgent</option>
+            </select>
 
-          {/* Priority Pill */}
-          <select 
-            value={selectedPriority}
-            onChange={(e) => setSelectedPriority(e.target.value)}
-            style={{ fontSize: '0.75rem', padding: '3px 8px', border: '1px solid #CBD5E1', borderRadius: '6px', outline: 'none', background: '#F8FAFC' }}
-          >
-            <option value="all">All Priorities</option>
-            <option value="urgent">Urgent</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-          </select>
+            <select 
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              style={{ fontSize: '0.75rem', padding: '3px 8px', border: '1px solid #CBD5E1', borderRadius: '6px', outline: 'none', background: '#FFFFFF' }}
+            >
+              <option value="all">Status: All</option>
+              <option value="todo">To Do</option>
+              <option value="in-progress">In Progress</option>
+              <option value="review">Review</option>
+              <option value="done">Done</option>
+            </select>
 
-          {/* Status Pill */}
-          <select 
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            style={{ fontSize: '0.75rem', padding: '3px 8px', border: '1px solid #CBD5E1', borderRadius: '6px', outline: 'none', background: '#F8FAFC' }}
-          >
-            <option value="all">All Statuses</option>
-            <option value="todo">To Do</option>
-            <option value="in_progress">In Progress</option>
-            <option value="in_review">In Review</option>
-            <option value="done">Completed</option>
-          </select>
-
-          {/* Due Date Range */}
-          <select 
-            value={selectedDueDate}
-            onChange={(e) => setSelectedDueDate(e.target.value)}
-            style={{ fontSize: '0.75rem', padding: '3px 8px', border: '1px solid #CBD5E1', borderRadius: '6px', outline: 'none', background: '#F8FAFC' }}
-          >
-            <option value="">Any Due Date</option>
-            <option value="overdue">Overdue</option>
-            <option value="today">Due Today</option>
-            <option value="this_week">Due This Week</option>
-          </select>
-
-          {/* Clear Filters Button */}
-          {(query || selectedWorkspace || selectedBoard || selectedPriority !== 'all' || selectedStatus !== 'all' || selectedDueDate) && (
-            <button
+            <button 
               onClick={clearFilters}
-              style={{ border: 'none', background: '#FEF2F2', color: '#DC2626', fontSize: '0.72rem', padding: '3px 8px', borderRadius: '6px', cursor: 'pointer', fontWeight: 700 }}
+              style={{
+                marginLeft: 'auto',
+                background: 'transparent',
+                border: 'none',
+                color: '#64748B',
+                fontSize: '0.72rem',
+                cursor: 'pointer',
+                fontWeight: 600,
+                textDecoration: 'underline'
+              }}
             >
               Reset Filters
             </button>
-          )}
-        </div>
-
-        {/* Facets & Results Summary Bar */}
-        {facets && (
-          <div style={{ padding: '0.5rem 1.25rem', background: '#EEF2FF', borderBottom: '1px solid #E0E7FF', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem', color: '#4338CA', fontWeight: 600 }}>
-            <span>Found <strong>{searchResults.length}</strong> tasks matching search criteria</span>
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <span>High/Urgent: <strong>{(facets.byPriority?.urgent || 0) + (facets.byPriority?.high || 0)}</strong></span>
-              <span>Completed: <strong>{facets.byStatus?.done || 0}</strong></span>
-            </div>
           </div>
         )}
 
-        {/* Search Results List */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', background: '#FAFAFD' }}>
+        {/* Results List */}
+        <div style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '0.75rem 1rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.4rem',
+          maxHeight: '420px',
+        }}>
           {isLoading ? (
-            <div style={{ textAlign: 'center', padding: '3rem', color: '#64748B', fontSize: '0.85rem' }}>
+            <div style={{ textAlign: 'center', padding: '2.5rem', color: '#64748B', fontSize: '0.85rem' }}>
               Searching workspace tasks...
             </div>
           ) : searchResults.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '3rem', color: '#94A3B8' }}>
-              <AlertCircle size={36} style={{ marginBottom: '0.5rem', color: '#CBD5E1' }} />
-              <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#475569' }}>No tasks found</div>
-              <div style={{ fontSize: '0.8rem', marginTop: '4px' }}>Try searching with different keywords or resetting filters.</div>
+            <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: '#94A3B8' }}>
+              <AlertCircle size={32} style={{ marginBottom: '0.5rem', color: '#CBD5E1', display: 'inline-block' }} />
+              <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569' }}>
+                {query.trim() ? `No tasks found matching "${query}"` : 'Type to search tasks'}
+              </div>
+              <div style={{ fontSize: '0.75rem', marginTop: '4px' }}>
+                Try searching with different keywords or task keys like PULSE-...
+              </div>
             </div>
           ) : (
             searchResults.map((card) => (
               <div
                 key={card._id}
-                onClick={() => {
-                  onSelectCard(card._id, card.board);
-                  onClose();
-                }}
-                className="glass-card"
+                onClick={() => handleCardClick(card)}
                 style={{
-                  padding: '1rem',
-                  background: '#FFFFFF',
-                  borderRadius: '10px',
-                  border: '1px solid #E2E8F0',
-                  cursor: 'pointer',
                   display: 'flex',
-                  alignItems: 'flex-start',
+                  alignItems: 'center',
                   justifyContent: 'space-between',
-                  gap: '1rem',
-                  transition: 'all 0.15s ease'
+                  padding: '0.65rem 0.85rem',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  border: '1px solid #F1F5F9',
+                  background: '#FFFFFF',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#F8FAFC';
+                  e.currentTarget.style.borderColor = '#CBD5E1';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#FFFFFF';
+                  e.currentTarget.style.borderColor = '#F1F5F9';
                 }}
               >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
-                    <span style={{ fontSize: '0.72rem', fontFamily: 'var(--font-mono)', color: '#4F46E5', fontWeight: 800 }}>
-                      {card.key}
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ 
+                      fontSize: '0.72rem', 
+                      fontFamily: 'var(--font-mono)', 
+                      color: '#4F46E5', 
+                      fontWeight: 700,
+                      background: '#EEF2FF',
+                      padding: '2px 6px',
+                      borderRadius: '4px'
+                    }}>
+                      {card.key || 'TASK'}
                     </span>
-                    <span style={{ background: '#F1F5F9', color: '#475569', padding: '1px 6px', borderRadius: '4px', fontSize: '0.68rem', fontWeight: 700 }}>
-                      {card.boardName || 'Board'}
-                    </span>
-                    <span style={{ background: '#F8FAFC', color: '#64748B', border: '1px solid #E2E8F0', padding: '1px 6px', borderRadius: '4px', fontSize: '0.68rem', fontWeight: 600 }}>
-                      {card.listTitle || 'Column'}
-                    </span>
-                    <span className={getPriorityBadgeClass(card.priority)} style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', textTransform: 'capitalize', fontWeight: 700 }}>
+                    {card.boardName && (
+                      <span style={{ background: '#F1F5F9', color: '#475569', padding: '1px 6px', borderRadius: '4px', fontSize: '0.68rem', fontWeight: 600 }}>
+                        {card.boardName}
+                      </span>
+                    )}
+                    {card.listTitle && (
+                      <span style={{ background: '#F8FAFC', color: '#64748B', border: '1px solid #E2E8F0', padding: '1px 6px', borderRadius: '4px', fontSize: '0.68rem', fontWeight: 500 }}>
+                        {card.listTitle}
+                      </span>
+                    )}
+                    <span 
+                      style={{ 
+                        fontSize: '0.68rem', 
+                        fontWeight: 700, 
+                        color: getPriorityColor(card.priority),
+                        textTransform: 'capitalize' 
+                      }}
+                    >
                       {card.priority}
                     </span>
                   </div>
 
-                  <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0F172A', marginBottom: '0.35rem' }}>
+                  <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: '#0F172A', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {card.title}
                   </h4>
 
                   {card.description && (
-                    <p style={{ fontSize: '0.78rem', color: '#64748B', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <p style={{ fontSize: '0.75rem', color: '#64748B', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {card.description}
                     </p>
                   )}
-
-                  {/* Tag Pills */}
-                  {card.labels && card.labels.length > 0 && (
-                    <div style={{ display: 'flex', gap: '4px', marginTop: '0.5rem' }}>
-                      {card.labels.map((lbl, idx) => (
-                        <span key={idx} style={{ background: `${lbl.color}15`, color: lbl.color, border: `1px solid ${lbl.color}30`, fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                          {lbl.name}
-                        </span>
-                      ))}
-                    </div>
-                  )}
                 </div>
 
-                {/* Right Arrow Action */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#4F46E5', fontSize: '0.8rem', fontWeight: 700 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#4F46E5', fontSize: '0.78rem', fontWeight: 600, flexShrink: 0, marginLeft: '0.75rem' }}>
                   <span>Open</span>
-                  <ArrowRight size={16} />
+                  <ArrowRight size={14} />
                 </div>
               </div>
             ))
           )}
+        </div>
+
+        {/* Modal Footer */}
+        <div style={{
+          padding: '0.55rem 1rem',
+          background: '#F8FAFC',
+          borderTop: '1px solid #F1F5F9',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          fontSize: '0.72rem',
+          color: '#64748B',
+        }}>
+          <span>
+            {query.trim() ? `${searchResults.length} result(s) found` : 'Global Task Search'}
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>Click item to open</span>
+            <span>Close: <kbd style={{ fontFamily: 'var(--font-mono)', padding: '1px 4px', background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '3px' }}>ESC</kbd></span>
+          </div>
         </div>
       </div>
     </div>
