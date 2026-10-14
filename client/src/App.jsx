@@ -13,14 +13,16 @@ import CreateCardModal from "./components/CreateCardModal";
 import CreateBoardModal from "./components/CreateBoardModal";
 import CreateWorkspaceModal from "./components/CreateWorkspaceModal";
 import WorkspaceSettings from "./components/WorkspaceSettings";
-import Toast from "./components/Toast";
 import SearchModal from "./components/SearchModal";
+import CacheTelemetryModal from "./components/CacheTelemetryModal";
+import Toast from "./components/Toast";
 import {
   mockUsers,
   mockWorkspaces,
   mockBoards,
   mockLists,
   mockCards,
+  mockNotifications,
 } from "./mockData";
 
 import {
@@ -55,17 +57,27 @@ export default function App() {
   // Socket Connection Status State
   const [isSocketConnected, setIsSocketConnected] = useState(socket.connected);
 
-  // In-App Notification Center State (Week 4 Milestone)
-  const [notifications, setNotifications] = useState([]);
+  // Search & Notifications State
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [notifications, setNotifications] = useState(mockNotifications);
 
-  const addNotification = (title, message) => {
+  // Redis Cache Telemetry & High-Traffic Optimization State (Day 3-4)
+  const [isCacheModalOpen, setIsCacheModalOpen] = useState(false);
+  const [boardCacheMeta, setBoardCacheMeta] = useState(null);
+
+  // Helper for Real-time event notifications
+  const addNotification = (title, message, cardId, boardId) => {
     const newNotif = {
-      id: `ntf_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      _id: `ntf_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       title,
       message,
+      card: cardId,
+      board: boardId,
+      isRead: false,
+      createdAt: new Date().toISOString(),
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     };
-    setNotifications((prev) => [newNotif, ...prev.slice(0, 24)]);
+    setNotifications((prev) => [newNotif, ...prev.slice(0, 49)]);
   };
 
   const clearNotifications = () => setNotifications([]);
@@ -82,8 +94,6 @@ export default function App() {
   });
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
-
-  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
 
   // Global Ctrl + K / Cmd + K shortcut listener
   useEffect(() => {
@@ -107,11 +117,85 @@ export default function App() {
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
   const [isCreateWorkspaceModalOpen, setIsCreateWorkspaceModalOpen] =
     useState(false);
+  const [cardTypingUsers, setCardTypingUsers] = useState({});
 
   const handleUpdateWorkspace = (updatedWs) => {
     setWorkspaces(
       workspaces.map((w) => (w._id === updatedWs._id ? updatedWs : w)),
     );
+  };
+
+  // Global Keyboard Shortcut (Cmd+K / Ctrl+K)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsSearchModalOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Fetch Notifications for Logged-In User
+  const fetchNotifications = () => {
+    fetch(`${API_BASE}/notifications${currentUser ? `?userId=${currentUser._id}` : ''}`)
+      .then((res) => res.json())
+      .then((res) => {
+        if (res.status === 'success' && res.data) {
+          const notifsList = Array.isArray(res.data) ? res.data : (res.data.notifications || []);
+          setNotifications(notifsList);
+        }
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [currentUser]);
+
+  // Real-Time In-App Notification Broadcast Listener
+  useEffect(() => {
+    const handleNotificationReceived = (notif) => {
+      if (!currentUser || notif.user === currentUser._id || notif.user === 'all') {
+        setNotifications((prev) => [notif, ...prev]);
+        showToast(`🔔 ${notif.title}: ${notif.message}`, 'info');
+      }
+    };
+
+    socket.on('notification_received', handleNotificationReceived);
+    return () => {
+      socket.off('notification_received', handleNotificationReceived);
+    };
+  }, [currentUser]);
+
+  const handleMarkNotificationRead = (notifId) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n._id === notifId ? { ...n, isRead: true } : n))
+    );
+    fetch(`${API_BASE}/notifications/${notifId}/read`, { method: 'PUT' }).catch(() => {});
+  };
+
+  const handleMarkAllNotificationsRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    fetch(`${API_BASE}/notifications/read-all`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUser?._id }),
+    }).catch(() => {});
+  };
+
+  const handleDeleteNotification = (notifId) => {
+    setNotifications((prev) => prev.filter((n) => n._id !== notifId));
+    fetch(`${API_BASE}/notifications/${notifId}`, { method: 'DELETE' }).catch(() => {});
+  };
+
+  const handleSelectCardFromSearchOrNotif = (cardId, boardId) => {
+    if (boardId && boardId !== currentBoardId) {
+      setCurrentBoardId(boardId);
+    }
+    setActiveView('kanban');
+    setActiveCardId(cardId);
   };
 
   // Fetch Users & Data Models
@@ -144,6 +228,7 @@ export default function App() {
 
   useEffect(() => {
     if (currentBoardId) {
+      setCardTypingUsers({});
       fetchBoardDetails(currentBoardId);
     }
   }, [currentBoardId]);
@@ -245,6 +330,43 @@ export default function App() {
     socket.on("card_updated", handleRealtimeCardUpdated);
     socket.on("card_deleted", handleRealtimeCardDeleted);
 
+    const handleCardTypingStart = (data) => {
+      if (!data.cardId || data.userId === currentUser?._id) return;
+      setCardTypingUsers((prev) => {
+        const list = prev[data.cardId] || [];
+        if (list.some((u) => u.userId === data.userId)) return prev;
+        return {
+          ...prev,
+          [data.cardId]: [
+            ...list,
+            {
+              userId: data.userId,
+              userName: data.userName,
+              avatar: data.avatar,
+              timestamp: Date.now(),
+            },
+          ],
+        };
+      });
+    };
+
+    const handleCardTypingStop = (data) => {
+      if (!data.cardId) return;
+      setCardTypingUsers((prev) => {
+        const list = prev[data.cardId] || [];
+        const nextList = list.filter((u) => u.userId !== data.userId);
+        if (nextList.length === 0) {
+          const copy = { ...prev };
+          delete copy[data.cardId];
+          return copy;
+        }
+        return { ...prev, [data.cardId]: nextList };
+      });
+    };
+
+    socket.on("card_typing_start", handleCardTypingStart);
+    socket.on("card_typing_stop", handleCardTypingStop);
+
     socket.on("list_created", handleRealtimeListEvent);
     socket.on("list_updated", handleRealtimeListEvent);
     socket.on("list_reordered", handleRealtimeListEvent);
@@ -261,6 +383,9 @@ export default function App() {
       socket.off("card_created", handleRealtimeCardCreated);
       socket.off("card_updated", handleRealtimeCardUpdated);
       socket.off("card_deleted", handleRealtimeCardDeleted);
+
+      socket.off("card_typing_start", handleCardTypingStart);
+      socket.off("card_typing_stop", handleCardTypingStop);
 
       socket.off("list_created", handleRealtimeListEvent);
       socket.off("list_updated", handleRealtimeListEvent);
@@ -306,6 +431,9 @@ export default function App() {
       .then((res) => {
         if (res.status === "success" && res.data) {
           setBoardDetails(res.data);
+          if (res._cache) {
+            setBoardCacheMeta(res._cache);
+          }
         }
       })
       .catch(() => {
@@ -941,13 +1069,20 @@ export default function App() {
     : mockCards;
 
   let activeCard = null;
-  if (activeCardId && boardDetails?.lists) {
-    for (const l of boardDetails.lists) {
-      const found = l.cards?.find((c) => c._id === activeCardId);
-      if (found) {
-        activeCard = found;
-        break;
+  if (activeCardId) {
+    if (boardDetails?.lists) {
+      for (const l of boardDetails.lists) {
+        const found = l.cards?.find((c) => c._id === activeCardId);
+        if (found) {
+          activeCard = found;
+          break;
+        }
       }
+    }
+    if (!activeCard) {
+      activeCard =
+        allCards.find((c) => c._id === activeCardId) ||
+        mockCards.find((c) => c._id === activeCardId);
     }
   }
 
@@ -993,12 +1128,20 @@ export default function App() {
         currentUser={currentUser}
         onOpenLoginModal={() => setIsLoginModalOpen(true)}
         onLogoutUser={handleLogoutUser}
-        onOpenInviteModal={() => setIsInviteModalOpen(true)}
         activeBoardPeers={activeBoardPeers}
         isSocketConnected={isSocketConnected}
-        notifications={notifications}
+        onOpenSearchModal={() => setIsSearchModalOpen(true)}
+        notifications={Array.isArray(notifications) ? notifications : []}
+        unreadCount={(Array.isArray(notifications) ? notifications : []).filter((n) => !n.isRead).length}
+        onMarkNotificationRead={handleMarkNotificationRead}
+        onMarkAllNotificationsRead={handleMarkAllNotificationsRead}
+        onDeleteNotification={handleDeleteNotification}
+        onNotificationClick={(notif) => {
+          if (notif.card) handleSelectCardFromSearchOrNotif(notif.card, notif.board);
+        }}
         onClearNotifications={clearNotifications}
         onOpenSearch={() => setIsSearchModalOpen(true)}
+        onOpenCacheModal={() => setIsCacheModalOpen(true)}
       />
 
       {/* Main Workspace Layout */}
@@ -1022,13 +1165,6 @@ export default function App() {
           activeView={activeView}
           onSelectView={(view) => setActiveView(view)}
         />
-
-        <SearchModal
-        isOpen={isSearchModalOpen}
-        onClose={() => setIsSearchModalOpen(false)}
-        cards={allCards}
-        onSelectCard={(cardId) => setActiveCardId(cardId)}
-      />
 
         {/* View Switcher */}
         {activeView === "settings" ? (
@@ -1088,6 +1224,9 @@ export default function App() {
             currentUser={currentUser}
             activeBoardPeers={activeBoardPeers}
             activities={boardActivities}
+            cardTypingUsers={cardTypingUsers}
+            boardCacheMeta={boardCacheMeta}
+            onOpenCacheModal={() => setIsCacheModalOpen(true)}
           />
         )}
       </div>
@@ -1117,15 +1256,20 @@ export default function App() {
       />
 
       {/* Card Details Modal (Wired with Socket instance) */}
-      <CardModal
-        isOpen={Boolean(activeCardId)}
-        onClose={() => setActiveCardId(null)}
-        card={activeCard}
-        users={users}
-        currentUser={currentUser}
-        onUpdateCard={handleUpdateCard}
-        socket={socket}
-      />
+      {activeCard && (
+        <CardModal
+          isOpen={Boolean(activeCardId)}
+          onClose={() => setActiveCardId(null)}
+          card={activeCard}
+          users={users}
+          currentUser={currentUser}
+          onUpdateCard={handleUpdateCard}
+          onDeleteCard={handleDeleteCard}
+          boardLists={boardDetails?.lists || []}
+          boardName={boardDetails?.name || 'Sprint Board'}
+          socket={socket}
+        />
+      )}
 
       {/* Creation Modals */}
       <CreateCardModal
@@ -1147,6 +1291,27 @@ export default function App() {
         isOpen={isCreateWorkspaceModalOpen}
         onClose={() => setIsCreateWorkspaceModalOpen(false)}
         onCreateWorkspace={handleCreateWorkspace}
+      />
+
+      {/* Comprehensive Task Search Engine Modal */}
+      <SearchModal
+        isOpen={isSearchModalOpen}
+        onClose={() => setIsSearchModalOpen(false)}
+        onSelectCard={handleSelectCardFromSearchOrNotif}
+        workspaces={workspaces}
+        boards={workspaceBoards}
+        users={users}
+        cards={allCards}
+      />
+
+      {/* Day 3-4: Redis Cache & Performance Telemetry Hub */}
+      <CacheTelemetryModal
+        isOpen={isCacheModalOpen}
+        onClose={() => setIsCacheModalOpen(false)}
+        currentBoardId={currentBoardId}
+        currentBoardName={boardDetails?.name}
+        socket={socket}
+        showToast={showToast}
       />
 
       {/* Toast Notification Container */}

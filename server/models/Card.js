@@ -51,7 +51,11 @@ const CardSchemaDefinition = {
       id: { type: "String" },
       user: { type: "ObjectId", ref: "User" },
       content: { type: "String" },
-      createdAt: { type: "Date", default: "Date.now" }
+      parentId: { type: "String", default: null }, // Parent comment ID for threaded replies
+      reactions: { type: "Object", default: {} }, // Emoji reactions mapping: { "👍": [userId], "❤️": [userId] }
+      isResolved: { type: "Boolean", default: false }, // Thread resolution status
+      createdAt: { type: "Date", default: "Date.now" },
+      updatedAt: { type: "Date" }
     }
   ],
   createdAt: "Date",
