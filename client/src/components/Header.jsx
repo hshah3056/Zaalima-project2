@@ -45,7 +45,10 @@ export default function Header({
   // Close menus on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
+      if (
+        profileMenuRef.current &&
+        !profileMenuRef.current.contains(e.target)
+      ) {
         setIsProfileMenuOpen(false);
       }
       if (notifMenuRef.current && !notifMenuRef.current.contains(e.target)) {
@@ -68,14 +71,15 @@ export default function Header({
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        gap: "0.5rem",
+        flexWrap: "wrap",
+        gap: "0.5rem 0.75rem",
         zIndex: 50,
         background: "#FFFFFF",
         borderBottom: "1px solid #E2E8F0",
         boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.04)",
         width: "100%",
         boxSizing: "border-box",
-        overflowX: "hidden",
+        minHeight: "52px",
       }}
     >
       {/* LEFT SECTION: Logo, Workspace Dropdown & Search Button */}
@@ -83,9 +87,8 @@ export default function Header({
         style={{
           display: "flex",
           alignItems: "center",
-          gap: "0.6rem",
-          flexShrink: 0,
-          minWidth: 0,
+          gap: "0.5rem",
+          flexWrap: "wrap",
         }}
       >
         {/* Brand */}
@@ -94,30 +97,29 @@ export default function Header({
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "0.5rem",
+            gap: "0.45rem",
             cursor: "pointer",
-            flexShrink: 0,
           }}
         >
           <div
             style={{
               background: "linear-gradient(135deg, #4F46E5 0%, #EC4899 100%)",
-              width: "32px",
-              height: "32px",
+              width: "30px",
+              height: "30px",
               borderRadius: "8px",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              boxShadow: "0 2px 8px rgba(79, 70, 229, 0.25)",
+              boxShadow: "0 2px 6px rgba(79, 70, 229, 0.25)",
               flexShrink: 0,
             }}
           >
-            <Zap size={17} color="#FFFFFF" />
+            <Zap size={16} color="#FFFFFF" />
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
             <h1
               style={{
-                fontSize: "1.05rem",
+                fontSize: "1rem",
                 fontWeight: 800,
                 color: "#0F172A",
                 letterSpacing: "-0.02em",
@@ -129,7 +131,7 @@ export default function Header({
             </h1>
             <span
               style={{
-                fontSize: "0.58rem",
+                fontSize: "0.55rem",
                 textTransform: "uppercase",
                 letterSpacing: "0.04em",
                 color: "#059669",
@@ -145,58 +147,55 @@ export default function Header({
           </div>
         </div>
 
-        <div style={{ height: "20px", width: "1px", background: "#E2E8F0" }} />
+        <div style={{ height: "18px", width: "1px", background: "#E2E8F0" }} />
 
         {/* Workspace Dropdown */}
-        <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
-          <select
-            value={currentWorkspace?._id || ""}
-            onChange={(e) => onSelectWorkspace(e.target.value)}
-            style={{
-              background: "#F8FAFC",
-              color: "#0F172A",
-              border: "1px solid #CBD5E1",
-              borderRadius: "6px",
-              padding: "0.3rem 0.5rem",
-              fontSize: "0.78rem",
-              fontWeight: 600,
-              cursor: "pointer",
-              outline: "none",
-              maxWidth: "150px",
-            }}
-          >
-            {workspaces.map((ws) => (
-              <option key={ws._id} value={ws._id}>
-                {ws.name} ({ws.boards?.length || 0})
-              </option>
-            ))}
-          </select>
-        </div>
+        <select
+          value={currentWorkspace?._id || ""}
+          onChange={(e) => onSelectWorkspace(e.target.value)}
+          style={{
+            background: "#F8FAFC",
+            color: "#0F172A",
+            border: "1px solid #CBD5E1",
+            borderRadius: "6px",
+            padding: "0.28rem 0.45rem",
+            fontSize: "0.76rem",
+            fontWeight: 600,
+            cursor: "pointer",
+            outline: "none",
+            maxWidth: "140px",
+          }}
+        >
+          {workspaces.map((ws) => (
+            <option key={ws._id} value={ws._id}>
+              {ws.name} ({ws.boards?.length || 0})
+            </option>
+          ))}
+        </select>
 
-        {/* Search tasks trigger */}
+        {/* Search trigger */}
         <button
           onClick={onOpenSearch}
           title="Search tasks (Ctrl + K)"
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "0.4rem",
+            gap: "0.35rem",
             background: "#F8FAFC",
             border: "1px solid #CBD5E1",
             borderRadius: "6px",
-            padding: "0.3rem 0.55rem",
+            padding: "0.28rem 0.5rem",
             color: "#64748B",
             fontSize: "0.75rem",
             cursor: "pointer",
             outline: "none",
-            transition: "all 0.15s ease",
           }}
         >
           <Search size={13} color="#64748B" />
-          <span style={{ display: "inline-block" }}>Search...</span>
+          <span>Search...</span>
           <kbd
             style={{
-              fontSize: "0.6rem",
+              fontSize: "0.58rem",
               padding: "1px 4px",
               borderRadius: "3px",
               border: "1px solid #CBD5E1",
@@ -211,7 +210,7 @@ export default function Header({
         </button>
       </div>
 
-      {/* CENTER SECTION: View Navigation Switcher */}
+      {/* CENTER SECTION: View Switcher */}
       <div
         style={{
           display: "flex",
@@ -221,8 +220,7 @@ export default function Header({
           padding: "0.2rem",
           borderRadius: "8px",
           border: "1px solid #E2E8F0",
-          flexShrink: 1,
-          minWidth: 0,
+          flexWrap: "wrap",
         }}
       >
         <button
@@ -232,16 +230,15 @@ export default function Header({
             background: activeView === "kanban" ? "#4F46E5" : "transparent",
             color: activeView === "kanban" ? "#FFFFFF" : "#475569",
             border: "none",
-            padding: "0.3rem 0.6rem",
+            padding: "0.28rem 0.55rem",
             borderRadius: "5px",
-            fontSize: "0.76rem",
+            fontSize: "0.75rem",
             fontWeight: 700,
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
             gap: "0.3rem",
             whiteSpace: "nowrap",
-            transition: "all 0.15s",
           }}
         >
           <Layers size={13} />
@@ -255,16 +252,15 @@ export default function Header({
             background: activeView === "team" ? "#4F46E5" : "transparent",
             color: activeView === "team" ? "#FFFFFF" : "#475569",
             border: "none",
-            padding: "0.3rem 0.6rem",
+            padding: "0.28rem 0.55rem",
             borderRadius: "5px",
-            fontSize: "0.76rem",
+            fontSize: "0.75rem",
             fontWeight: 700,
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
             gap: "0.3rem",
             whiteSpace: "nowrap",
-            transition: "all 0.15s",
           }}
         >
           <Users
@@ -281,16 +277,15 @@ export default function Header({
             background: activeView === "user_panel" ? "#4F46E5" : "transparent",
             color: activeView === "user_panel" ? "#FFFFFF" : "#475569",
             border: "none",
-            padding: "0.3rem 0.6rem",
+            padding: "0.28rem 0.55rem",
             borderRadius: "5px",
-            fontSize: "0.76rem",
+            fontSize: "0.75rem",
             fontWeight: 700,
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
             gap: "0.3rem",
             whiteSpace: "nowrap",
-            transition: "all 0.15s",
           }}
         >
           <User
@@ -307,16 +302,15 @@ export default function Header({
             background: activeView === "models" ? "#4F46E5" : "transparent",
             color: activeView === "models" ? "#FFFFFF" : "#475569",
             border: "none",
-            padding: "0.3rem 0.6rem",
+            padding: "0.28rem 0.55rem",
             borderRadius: "5px",
-            fontSize: "0.76rem",
+            fontSize: "0.75rem",
             fontWeight: 700,
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
             gap: "0.3rem",
             whiteSpace: "nowrap",
-            transition: "all 0.15s",
           }}
         >
           <Database
@@ -327,16 +321,16 @@ export default function Header({
         </button>
       </div>
 
-      {/* RIGHT SECTION: Live Status, Notifications, User Profile & Actions */}
+      {/* RIGHT SECTION: Status, Notifications, Profile, Create */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
           gap: "0.45rem",
-          flexShrink: 0,
+          flexWrap: "wrap",
         }}
       >
-        {/* Live Socket Status Pill */}
+        {/* Live / Offline pill */}
         <div
           title={
             isSocketConnected
@@ -347,7 +341,7 @@ export default function Header({
             display: "inline-flex",
             alignItems: "center",
             gap: "4px",
-            fontSize: "0.7rem",
+            fontSize: "0.68rem",
             fontWeight: 700,
             padding: "2px 7px",
             borderRadius: "9999px",
@@ -383,9 +377,11 @@ export default function Header({
             style={{
               position: "relative",
               background: isNotificationsOpen ? "#EEF2FF" : "#F8FAFC",
-              border: isNotificationsOpen ? "1px solid #4F46E5" : "1px solid #CBD5E1",
+              border: isNotificationsOpen
+                ? "1px solid #4F46E5"
+                : "1px solid #CBD5E1",
               color: isNotificationsOpen ? "#4F46E5" : "#64748B",
-              padding: "0.35rem",
+              padding: "0.32rem",
               borderRadius: "6px",
               cursor: "pointer",
               display: "flex",
@@ -393,7 +389,7 @@ export default function Header({
               justifyContent: "center",
             }}
           >
-            <Bell size={15} />
+            <Bell size={14} />
             {notifications.length > 0 && (
               <span
                 style={{
@@ -402,7 +398,7 @@ export default function Header({
                   right: "-4px",
                   background: "#EF4444",
                   color: "#FFFFFF",
-                  fontSize: "0.58rem",
+                  fontSize: "0.55rem",
                   fontWeight: 800,
                   width: "14px",
                   height: "14px",
@@ -418,25 +414,25 @@ export default function Header({
             )}
           </button>
 
-          {/* Notifications Dropdown Drawer */}
+          {/* Notifications Dropdown */}
           {isNotificationsOpen && (
             <div
               className="glass-panel animate-modal"
               style={{
                 position: "absolute",
                 right: 0,
-                top: "36px",
+                top: "34px",
                 width: "280px",
                 background: "#FFFFFF",
                 border: "1px solid #E2E8F0",
                 borderRadius: "10px",
                 boxShadow: "0 10px 25px rgba(0, 0, 0, 0.15)",
-                padding: "0.65rem",
+                padding: "0.6rem",
                 zIndex: 100,
                 display: "flex",
                 flexDirection: "column",
-                gap: "0.4rem",
-                maxHeight: "340px",
+                gap: "0.35rem",
+                maxHeight: "320px",
               }}
             >
               <div
@@ -444,13 +440,21 @@ export default function Header({
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  paddingBottom: "0.4rem",
+                  paddingBottom: "0.35rem",
                   borderBottom: "1px solid #F1F5F9",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "5px" }}
+                >
                   <Bell size={13} color="#4F46E5" />
-                  <span style={{ fontSize: "0.8rem", fontWeight: 800, color: "#0F172A" }}>
+                  <span
+                    style={{
+                      fontSize: "0.78rem",
+                      fontWeight: 800,
+                      color: "#0F172A",
+                    }}
+                  >
                     Notifications ({notifications.length})
                   </span>
                 </div>
@@ -480,14 +484,14 @@ export default function Header({
                   display: "flex",
                   flexDirection: "column",
                   gap: "0.35rem",
-                  maxHeight: "240px",
+                  maxHeight: "220px",
                 }}
               >
                 {notifications.length === 0 ? (
                   <div
                     style={{
                       textAlign: "center",
-                      padding: "1.2rem 0",
+                      padding: "1rem 0",
                       color: "#94A3B8",
                       fontSize: "0.72rem",
                     }}
@@ -499,7 +503,7 @@ export default function Header({
                     <div
                       key={notif.id}
                       style={{
-                        padding: "0.45rem",
+                        padding: "0.4rem",
                         borderRadius: "6px",
                         background: "#F8FAFC",
                         border: "1px solid #E2E8F0",
@@ -508,15 +512,21 @@ export default function Header({
                         gap: "2px",
                       }}
                     >
-                      <div style={{ fontSize: "0.73rem", fontWeight: 700, color: "#0F172A" }}>
+                      <div
+                        style={{
+                          fontSize: "0.72rem",
+                          fontWeight: 700,
+                          color: "#0F172A",
+                        }}
+                      >
                         {notif.title}
                       </div>
-                      <div style={{ fontSize: "0.68rem", color: "#475569" }}>
+                      <div style={{ fontSize: "0.66rem", color: "#475569" }}>
                         {notif.message}
                       </div>
                       <span
                         style={{
-                          fontSize: "0.58rem",
+                          fontSize: "0.55rem",
                           color: "#94A3B8",
                           marginTop: "2px",
                           fontFamily: "var(--font-mono)",
@@ -547,14 +557,14 @@ export default function Header({
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "0.4rem",
+              gap: "0.35rem",
               background: "#F8FAFC",
               border: currentUser ? "1px solid #C7D2FE" : "1px solid #CBD5E1",
-              padding: "0.25rem 0.55rem",
+              padding: "0.22rem 0.5rem",
               borderRadius: "16px",
               cursor: "pointer",
               transition: "all 0.15s",
-              maxWidth: "140px",
+              maxWidth: "135px",
             }}
           >
             {currentUser ? (
@@ -564,8 +574,8 @@ export default function Header({
                     src={currentUser.avatar}
                     alt={currentUser.name}
                     style={{
-                      width: "22px",
-                      height: "22px",
+                      width: "20px",
+                      height: "20px",
                       borderRadius: "50%",
                       objectFit: "cover",
                     }}
@@ -575,8 +585,8 @@ export default function Header({
                       position: "absolute",
                       bottom: 0,
                       right: 0,
-                      width: "6px",
-                      height: "6px",
+                      width: "5px",
+                      height: "5px",
                       borderRadius: "50%",
                       background: "#059669",
                       border: "1px solid #FFF",
@@ -593,10 +603,10 @@ export default function Header({
                 >
                   <span
                     style={{
-                      fontSize: "0.75rem",
+                      fontSize: "0.72rem",
                       fontWeight: 700,
                       color: "#0F172A",
-                      lineHeight: "1.1",
+                      lineHeight: "1",
                       whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
@@ -604,24 +614,17 @@ export default function Header({
                   >
                     {currentUser.name}
                   </span>
-                  <span
-                    style={{
-                      fontSize: "0.6rem",
-                      color: "#4F46E5",
-                      fontWeight: 600,
-                      textTransform: "capitalize",
-                      lineHeight: "1",
-                    }}
-                  >
-                    {currentUser.role}
-                  </span>
                 </div>
-                <ChevronDown size={12} color="#64748B" style={{ flexShrink: 0 }} />
+                <ChevronDown
+                  size={11}
+                  color="#64748B"
+                  style={{ flexShrink: 0 }}
+                />
               </>
             ) : (
               <span
                 style={{
-                  fontSize: "0.75rem",
+                  fontSize: "0.72rem",
                   fontWeight: 700,
                   color: "#4F46E5",
                   display: "flex",
@@ -629,40 +632,40 @@ export default function Header({
                   gap: "3px",
                 }}
               >
-                <UserCheck size={14} /> Sign In
+                <UserCheck size={13} /> Sign In
               </span>
             )}
           </div>
 
-          {/* User Menu Dropdown (Guaranteed not to cut off screen) */}
+          {/* User Menu Dropdown */}
           {isProfileMenuOpen && currentUser && (
             <div
               className="glass-panel animate-modal"
               style={{
                 position: "absolute",
                 right: 0,
-                top: "36px",
-                width: "210px",
+                top: "34px",
+                width: "200px",
                 background: "#FFFFFF",
                 border: "1px solid #E2E8F0",
                 borderRadius: "10px",
                 boxShadow: "0 10px 25px rgba(0, 0, 0, 0.15)",
-                padding: "0.55rem",
+                padding: "0.5rem",
                 zIndex: 100,
                 display: "flex",
                 flexDirection: "column",
-                gap: "0.35rem",
+                gap: "0.3rem",
               }}
             >
               <div
                 style={{
-                  padding: "0.35rem 0.45rem 0.45rem",
+                  padding: "0.3rem 0.4rem 0.4rem",
                   borderBottom: "1px solid #F1F5F9",
                 }}
               >
                 <div
                   style={{
-                    fontSize: "0.8rem",
+                    fontSize: "0.78rem",
                     fontWeight: 800,
                     color: "#0F172A",
                   }}
@@ -671,7 +674,7 @@ export default function Header({
                 </div>
                 <div
                   style={{
-                    fontSize: "0.68rem",
+                    fontSize: "0.65rem",
                     color: "#64748B",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
@@ -682,14 +685,14 @@ export default function Header({
                 </div>
                 <span
                   style={{
-                    fontSize: "0.6rem",
+                    fontSize: "0.58rem",
                     color: "#059669",
                     background: "#ECFDF5",
-                    padding: "1px 5px",
+                    padding: "1px 4px",
                     borderRadius: "4px",
                     fontWeight: 700,
                     display: "inline-block",
-                    marginTop: "3px",
+                    marginTop: "2px",
                   }}
                 >
                   Online
@@ -704,19 +707,19 @@ export default function Header({
                 style={{
                   background: "transparent",
                   border: "none",
-                  padding: "0.4rem",
+                  padding: "0.35rem",
                   borderRadius: "5px",
-                  fontSize: "0.75rem",
+                  fontSize: "0.72rem",
                   fontWeight: 600,
                   color: "#334155",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
-                  gap: "6px",
+                  gap: "5px",
                   textAlign: "left",
                 }}
               >
-                <Users size={13} color="#4F46E5" /> Work with Team
+                <Users size={12} color="#4F46E5" /> Work with Team
               </button>
 
               <button
@@ -727,19 +730,19 @@ export default function Header({
                 style={{
                   background: "transparent",
                   border: "none",
-                  padding: "0.4rem",
+                  padding: "0.35rem",
                   borderRadius: "5px",
-                  fontSize: "0.75rem",
+                  fontSize: "0.72rem",
                   fontWeight: 600,
                   color: "#334155",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
-                  gap: "6px",
+                  gap: "5px",
                   textAlign: "left",
                 }}
               >
-                <UserPlus size={13} color="#059669" /> Invite Team Member
+                <UserPlus size={12} color="#059669" /> Invite Member
               </button>
 
               <button
@@ -750,26 +753,26 @@ export default function Header({
                 style={{
                   background: "transparent",
                   border: "none",
-                  padding: "0.4rem",
+                  padding: "0.35rem",
                   borderRadius: "5px",
-                  fontSize: "0.75rem",
+                  fontSize: "0.72rem",
                   fontWeight: 600,
                   color: "#334155",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
-                  gap: "6px",
+                  gap: "5px",
                   textAlign: "left",
                 }}
               >
-                <UserCheck size={13} color="#0891B2" /> Switch Account
+                <UserCheck size={12} color="#0891B2" /> Switch Account
               </button>
 
               <div
                 style={{
                   height: "1px",
                   background: "#F1F5F9",
-                  margin: "2px 0",
+                  margin: "1px 0",
                 }}
               />
 
@@ -781,25 +784,25 @@ export default function Header({
                 style={{
                   background: "#FEF2F2",
                   border: "1px solid #FCA5A5",
-                  padding: "0.4rem",
-                  borderRadius: "6px",
-                  fontSize: "0.75rem",
+                  padding: "0.35rem",
+                  borderRadius: "5px",
+                  fontSize: "0.72rem",
                   fontWeight: 700,
                   color: "#DC2626",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  gap: "5px",
+                  gap: "4px",
                 }}
               >
-                <LogOut size={13} /> Sign Out
+                <LogOut size={12} /> Sign Out
               </button>
             </div>
           )}
         </div>
 
-        {/* Reset Data Button */}
+        {/* Reset Data */}
         <button
           onClick={onResetData}
           title="Reset Seed Data"
@@ -807,36 +810,36 @@ export default function Header({
             background: "#F1F5F9",
             border: "1px solid #CBD5E1",
             color: "#64748B",
-            padding: "0.35rem",
+            padding: "0.32rem",
             borderRadius: "6px",
             cursor: "pointer",
             flexShrink: 0,
           }}
         >
-          <RefreshCw size={13} />
+          <RefreshCw size={12} />
         </button>
 
-        {/* Create Card Primary Button */}
+        {/* Create Card Button */}
         <button
           onClick={onOpenCreateTask}
           style={{
             background: "#4F46E5",
             color: "#FFFFFF",
             border: "none",
-            padding: "0.38rem 0.75rem",
+            padding: "0.32rem 0.65rem",
             borderRadius: "6px",
-            fontSize: "0.76rem",
+            fontSize: "0.74rem",
             fontWeight: 700,
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
-            gap: "0.3rem",
+            gap: "0.25rem",
             boxShadow: "0 2px 6px rgba(79, 70, 229, 0.25)",
             whiteSpace: "nowrap",
             flexShrink: 0,
           }}
         >
-          <Plus size={14} /> Card
+          <Plus size={13} /> Card
         </button>
       </div>
     </header>
