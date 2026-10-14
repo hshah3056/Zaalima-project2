@@ -14,6 +14,7 @@ import CreateBoardModal from "./components/CreateBoardModal";
 import CreateWorkspaceModal from "./components/CreateWorkspaceModal";
 import WorkspaceSettings from "./components/WorkspaceSettings";
 import SearchModal from "./components/SearchModal";
+import CacheTelemetryModal from "./components/CacheTelemetryModal";
 import Toast from "./components/Toast";
 import {
   mockUsers,
@@ -59,6 +60,10 @@ export default function App() {
   // Search & Notifications State
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [notifications, setNotifications] = useState(mockNotifications);
+
+  // Redis Cache Telemetry & High-Traffic Optimization State (Day 3-4)
+  const [isCacheModalOpen, setIsCacheModalOpen] = useState(false);
+  const [boardCacheMeta, setBoardCacheMeta] = useState(null);
 
   // Helper for Real-time event notifications
   const addNotification = (title, message, cardId, boardId) => {
@@ -426,6 +431,9 @@ export default function App() {
       .then((res) => {
         if (res.status === "success" && res.data) {
           setBoardDetails(res.data);
+          if (res._cache) {
+            setBoardCacheMeta(res._cache);
+          }
         }
       })
       .catch(() => {
@@ -1133,6 +1141,7 @@ export default function App() {
         }}
         onClearNotifications={clearNotifications}
         onOpenSearch={() => setIsSearchModalOpen(true)}
+        onOpenCacheModal={() => setIsCacheModalOpen(true)}
       />
 
       {/* Main Workspace Layout */}
@@ -1216,6 +1225,8 @@ export default function App() {
             activeBoardPeers={activeBoardPeers}
             activities={boardActivities}
             cardTypingUsers={cardTypingUsers}
+            boardCacheMeta={boardCacheMeta}
+            onOpenCacheModal={() => setIsCacheModalOpen(true)}
           />
         )}
       </div>
@@ -1291,6 +1302,16 @@ export default function App() {
         boards={workspaceBoards}
         users={users}
         cards={allCards}
+      />
+
+      {/* Day 3-4: Redis Cache & Performance Telemetry Hub */}
+      <CacheTelemetryModal
+        isOpen={isCacheModalOpen}
+        onClose={() => setIsCacheModalOpen(false)}
+        currentBoardId={currentBoardId}
+        currentBoardName={boardDetails?.name}
+        socket={socket}
+        showToast={showToast}
       />
 
       {/* Toast Notification Container */}

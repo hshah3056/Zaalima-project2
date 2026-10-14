@@ -46,6 +46,7 @@ export default function Header({
   onNotificationClick,
   onClearNotifications = () => {},
   onOpenSearch = () => {},
+  onOpenCacheModal = () => {},
 }) {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isNotificationMenuOpen, setIsNotificationMenuOpen] = useState(false);
@@ -322,6 +323,29 @@ export default function Header({
           />
           <span>{isSocketConnected ? "Live" : "Offline"}</span>
         </div>
+
+        {/* Redis Caching & Telemetry Trigger */}
+        <button
+          onClick={onOpenCacheModal}
+          title="Redis Caching & Telemetry (Day 3-4 High-Traffic Optimization)"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.35rem",
+            background: "#EEF2FF",
+            border: "1px solid #C7D2FE",
+            color: "#4F46E5",
+            padding: "0.35rem 0.65rem",
+            borderRadius: "8px",
+            fontSize: "0.75rem",
+            fontWeight: 700,
+            cursor: "pointer",
+            transition: "all 0.15s ease",
+          }}
+        >
+          <Zap size={13} fill="#4F46E5" />
+          <span>Redis Cache</span>
+        </button>
 
         {/* Task Search Engine Trigger Button */}
         <button

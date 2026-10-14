@@ -42,7 +42,9 @@ export default function BoardView({
   currentUser,
   activeBoardPeers = [],
   activities = [],
-  cardTypingUsers = {}
+  cardTypingUsers = {},
+  boardCacheMeta = null,
+  onOpenCacheModal = () => {}
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPriority, setSelectedPriority] = useState('all');
@@ -153,6 +155,29 @@ export default function BoardView({
               <span className="status-online-dot" style={{ background: '#10B981', width: '6px', height: '6px', borderRadius: '50%' }}></span>
               {activeBoardPeers.length + 1} Connected {activeBoardPeers.length + 1 === 1 ? 'User' : 'Users'}
             </span>
+
+            {/* High-Traffic Redis Cache Telemetry Button */}
+            <button
+              onClick={onOpenCacheModal}
+              title={`Redis Caching Active (${boardCacheMeta?.hit ? 'Cache HIT' : 'Cache MISS'}). Click for Live Telemetry & Benchmarks.`}
+              style={{
+                background: boardCacheMeta?.hit ? '#EEF2FF' : '#F8FAFC',
+                color: boardCacheMeta?.hit ? '#4F46E5' : '#475569',
+                border: boardCacheMeta?.hit ? '1px solid #C7D2FE' : '1px solid #CBD5E1',
+                borderRadius: '6px',
+                padding: '2px 8px',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <Zap size={12} color={boardCacheMeta?.hit ? "#4F46E5" : "#D97706"} fill={boardCacheMeta?.hit ? "#4F46E5" : "none"} />
+              <span>{boardCacheMeta?.hit ? `⚡ Cached ${boardCacheMeta.latencyMs || '0.7'}ms` : '⚡ Cache Sync'}</span>
+            </button>
           </div>
           <p style={{ fontSize: '0.8rem', color: '#64748B', marginTop: '4px' }}>
             {board.description || 'Real-time interactive Kanban workflow board.'}
