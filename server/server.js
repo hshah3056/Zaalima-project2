@@ -10,21 +10,47 @@ const { CardSchemaDefinition } = require("./models/Card");
 const { ActivitySchemaDefinition } = require("./models/Activity");
 const seed = require("./seed/seedData");
 const cacheService = require("./services/cacheService");
-
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const app = express();
 const PORT = process.env.PORT || 5001;
 
-// 1. Wrap Express with HTTP Server
+// 1. HTTP Security Headers with Helmet
+app.use(
+  helmet({
+    contentSecurityPolicy: false, // Prevents conflicts with Vite dev scripts and inline avatars
+    crossOriginEmbedderPolicy: false,
+  })
+);
+
+// 2. Global Rate Limiter (Protects against DDoS / brute-force flooding)
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes window
+  max: 300, // Limit each IP to 300 requests per 15 minutes
+  standardHeaders: true, 
+  legacyHeaders: false, 
+  message: {
+    status: 429,
+    message: "Too many requests from this IP, please try again after 15 minutes.",
+  },
+});
+
+// Apply rate limiter specifically to API routes
+app.use('/api', apiLimiter);
+
+// 3. Wrap Express with HTTP Server
 const server = http.createServer(app);
 
+// Dynamic allowed origins for Localhost and Production deployments
 const ALLOWED_ORIGINS = [
   "http://localhost:3000",
   "http://127.0.0.1:3000",
   "http://localhost:5173",
   "http://127.0.0.1:5173",
-];
+  process.env.CLIENT_URL,
+].filter(Boolean);
 
-// 2. Attach Socket.io with updated CORS Configuration
+// 4. Attach Socket.io with production-ready CORS & Keep-Alive timings
 const io = new Server(server, {
   cors: {
     origin: ALLOWED_ORIGINS,
@@ -35,12 +61,14 @@ const io = new Server(server, {
   pingInterval: 25000,
 });
 
-app.use(cors({
-  origin: ALLOWED_ORIGINS,
-  credentials: true,
-}));
+app.use(
+  cors({
+    origin: ALLOWED_ORIGINS,
+    credentials: true,
+  })
+);
 
-// ADD THIS LINE: Parse JSON request bodies
+// Parse JSON request bodies
 app.use(express.json());
 
 // In-memory data store for initial demonstration & API execution
